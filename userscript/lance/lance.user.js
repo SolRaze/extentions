@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         lance
-// @namespace    https://github.com/SolRaze/extensions/userscript/lance
+// @namespace    https://github.com/SolRaze/extentions/blob/main/userscript/lance 
 // @version      1.1
 // @description  exporter, usage tracker, enter-as-newline, injection with saved prompts, per-site settings
 // @author       SolRaze
-// @homepageURL  https://github.com/SolRaze/extensions/userscript/lance
-// @supportURL   https://github.com/SolRaze/extensions/userscript/lance/issues
+// @homepageURL  https://github.com/SolRaze/extensions
+// @supportURL   https://github.com/SolRaze/extensions/issues
 // @license      MIT
 // @icon         data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMjIgMjIiIGZpbGw9ImN1cnJlbnRDb2xvciIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNNSAxOUgzVjE3SDRWMTZINVYxNUg2VjE0SDVWMTNINlYxMkg3VjExSDlWMTBIMTBWOUgxMVY4SDEzVjdIMTRWNkgxNVY1SDE2VjRIMThWM0gxOVY0SDE4VjZIMTdWN0gxNlY4SDE1VjlIMTRWMTFIMTNWMTJIMTJWM TNIMTFWMTVIMTBWMTZIOVYxN0g4VjE2SDdWMTdINlYxOEg1WiIvPjwvc3ZnPg==
 // @include      *://claude.ai/*
