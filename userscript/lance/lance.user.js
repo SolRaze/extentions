@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         lance
 // @namespace    https://github.com/SolRaze/extensions/userscript/lance
-// @version      1.0
+// @version      1.1
 // @description  exporter, usage tracker, enter-as-newline, injection with saved prompts, per-site settings
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extensions/userscript/lance
