@@ -1,4 +1,4 @@
-# lance
+lance
 chat exporter with injection | usage tracker | enter-as-newline
 supports claude | deepseek | brave/ask
 
