@@ -8,6 +8,6 @@ claude usage tracker
 first-prompt injection with saved prompts
 enter inserts newline | cmd/win+enter sends
 
-https://greasyfork.org/en/scripts/579601-lance
+https://greasyfork.org/en/scripts/592831-lance
 
 license mit
