@@ -7,4 +7,4 @@ enter newline | ctrl/cmd/alt+rnter to send
 
 
 credits
-usage tracker [Claude Inline Usage Tracker v2.7](https://greasyfork.org/ru/scripts/572507-claude-usage-overlay)
+usage tracker (https://greasyfork.org/ru/scripts/572507-claude-usage-overlay)
