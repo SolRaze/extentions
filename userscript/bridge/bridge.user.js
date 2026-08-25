@@ -11,6 +11,8 @@
 // @noframes
 // @run-at       document-idle
 // @grant        none
+// @downloadURL https://update.greasyfork.org/scripts/592839/bridge.user.js
+// @updateURL https://update.greasyfork.org/scripts/592839/bridge.user.js
 // ==/UserScript==
 
 // Thingiverse renders the whole "Open in <slicer>" group behind a viewport gate — the group

@@ -15,6 +15,6 @@ deep link opens the app and stops with a destination-folder error
 
 selftest node selftest.js
 
-github http://github.com/SolRaze/extentions/tree/main/userscript/bridge
+github http://github.com/SolRaze/extentions/tree/main/userscript/bridge | greasyfork https://greasyfork.org/en/scripts/592839-bridge
 
 license mit
