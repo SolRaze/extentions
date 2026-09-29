@@ -28,4 +28,6 @@ media id stays a string | pk overflows a js number
 
 selftest node selftest.js
 
+github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
+
 license mit

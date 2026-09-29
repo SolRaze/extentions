@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.0
+// @version      1.0.1
 // @description  instagram saved library, sorter, downloader, collection organizer
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -17,6 +17,8 @@
 // @grant        GM_registerMenuCommand
 // @connect      cdninstagram.com
 // @connect      fbcdn.net
+// @downloadURL https://update.greasyfork.org/scripts/598006/hoard.user.js
+// @updateURL https://update.greasyfork.org/scripts/598006/hoard.meta.js
 // ==/UserScript==
 
 // Reads the saved feed through the same /api/v1 endpoints the web app calls, with the tab's own
