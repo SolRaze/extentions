@@ -1,25 +1,40 @@
 hoard
 
-instagram saved library | sorter | downloader | read-only, never writes to the account
+instagram saved collections as offline reference library | synced to disk | read-only, never writes to the account
 
 usage
-hoard pill bottom-left | or tampermonkey menu open hoard | esc closes
+hoard pill bottom-left | or tampermonkey menu open hoard | sync to disk | esc closes
 refresh pulls saved feed + collections with tab session | cached until next refresh
-full-screen library covers the rest of instagram
-filter collection | no collection | type | user or caption
-sort saved | newest | oldest | user | likes
-tile opens viewer | full media | caption | collections | single download
+in-tab library covers the rest of instagram | filter collection | type | user or caption | sort saved | newest | oldest | user
 
-download
-download shown saves filtered list | `instagram/<collection>/<user>_<code>[_n].<ext>`
-folder is viewed collection | else first collection | else saved
-done posts marked ✓ and skipped | viewer download forces
-tampermonkey download mode browser api | subfolders need it
-cdn urls expire after days | failures mean refresh
+sync
+sync to disk = refresh | download only posts not yet on disk | rewrite index.html
+each post downloaded once | full res | every carousel item | into first collection's folder | else saved
+posts already on disk only get collections and saved order updated | unsaved posts stay
+archive of what is on disk lives in tampermonkey storage `hoard.archive` | local paths, never cdn urls
+saved after every post | interrupted sync resumes | failures retry on next sync
+
+disk
+Downloads/instagram/index.html | offline viewer, library data inlined, opens from file://
+Downloads/instagram/<collection>/<user>_<code>[_n].<ext>
+Downloads/instagram/profiles/<user>.jpg
+
+viewer
+collections grid | 2x2 cover | all posts first
+collection | square 3-column grid | album and video icons
+post | profile on top | carousel with arrows, dots, ← → | caption with tags and mentions | date | link to original
+no likes | no comments
+photo click fits screen | second click 1:1 | third closes | esc goes back
+
+tampermonkey setup
+download mode browser api | subfolders and overwrite need it
+whitelist `.html` `.jpg` `.mp4` `.webp` extensions
+browser setting ask where to save off | else a prompt per file
 
 gotchas
 throttled 1.5 s per feed page | 0.8 s per downloaded post | fast scraping risks account flag
 media id stays a string | pk overflows a js number
+tampermonkey storage cleared = archive lost | next sync redownloads everything
 
 selftest node selftest.js
 
