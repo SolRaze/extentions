@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.0.1
-// @description  instagram saved library, sorter, downloader, collection organizer
+// @version      1.1
+// @description  instagram saved library, sorter, downloader
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -24,14 +24,10 @@
 // Reads the saved feed through the same /api/v1 endpoints the web app calls, with the tab's own
 // session, and shows it in a full-screen library that covers the rest of Instagram.
 
-const AUTHOR_W = 3;          // one post by the same author in a collection weighs this many shared hashtags
-const PAGE_DELAY = 1500;     // ms between feed pages
-const DL_DELAY = 800;        // ms between downloaded posts
-const WRITE_DELAY = 2500;    // ms between collection writes
+const PAGE_DELAY = 1500;  // ms between feed pages
+const DL_DELAY = 800;     // ms between downloaded posts
 
 // Pure helpers (exported for selftest.js)
-const tagsOf = (text) => [...new Set((String(text).match(/#[\p{L}\p{N}_]+/gu) || []).map(t => t.toLowerCase()))];
-
 const extOf = (url) => {
     const m = /\.(\w{2,4})$/.exec(new URL(url).pathname);
     return m ? m[1].toLowerCase() : 'jpg';
@@ -46,7 +42,7 @@ function normalize(m, order) {
     const caption = m.caption?.text || '';
     return {
         id: String(m.id), code: m.code, user: m.user?.username || '', order,
-        taken: m.taken_at || 0, likes: m.like_count || 0, caption, tags: tagsOf(caption),
+        taken: m.taken_at || 0, likes: m.like_count || 0, caption,
         type: m.media_type === 8 ? 'album' : m.media_type === 2 ? (m.product_type === 'clips' ? 'reel' : 'video') : 'photo',
         // candidates run largest first: the last one still 320px wide is the grid thumbnail
         thumb: (cands.filter(c => c.width >= 320).pop() || cands[0] || {}).url || '',
@@ -77,50 +73,7 @@ const safe = (s) => String(s).replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/^
 const fileName = (it, i, url, folder) =>
     `instagram/${safe(folder)}/${safe(it.user)}_${it.code}${it.files.length > 1 ? `_${i + 1}` : ''}.${extOf(url)}`;
 
-// Posts in no collection are matched against the existing ones: every post of the same author
-// already there scores AUTHOR_W, every shared hashtag scores once per post carrying it.
-// What no collection claims clusters into new ones — by author first, then by commonest hashtag.
-function suggest(items, cols, { minScore = 3, minNew = 3 } = {}) {
-    const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
-    const stats = new Map(cols.map(c => [c.id, { users: new Map(), tags: new Map() }]));
-    for (const it of items) for (const c of it.cols) {
-        const s = stats.get(c);
-        if (!s) continue;
-        bump(s.users, it.user);
-        it.tags.forEach(t => bump(s.tags, t));
-    }
-
-    const moves = [], rest = [];
-    for (const it of items) {
-        if (it.cols.length) continue;
-        let best = null;
-        for (const [col, s] of stats) {
-            const score = AUTHOR_W * (s.users.get(it.user) || 0) + it.tags.reduce((n, t) => n + (s.tags.get(t) || 0), 0);
-            if (score >= minScore && (!best || score > best.score)) best = { item: it, col, score };
-        }
-        if (best) moves.push(best); else rest.push(it);
-    }
-
-    const names = new Set(cols.map(c => c.name.toLowerCase()));
-    const claimed = new Set();
-    const fresh = [];
-    const cluster = (keysOf) => {
-        const g = new Map();
-        for (const it of rest) if (!claimed.has(it)) for (const k of keysOf(it)) (g.get(k) || g.set(k, []).get(k)).push(it);
-        for (const [name, list] of [...g].sort((a, b) => b[1].length - a[1].length)) {
-            const left = list.filter(it => !claimed.has(it));
-            if (left.length < minNew || names.has(name.toLowerCase())) continue;
-            names.add(name.toLowerCase());
-            fresh.push({ name, items: left });
-            left.forEach(it => claimed.add(it));
-        }
-    };
-    cluster(it => [it.user]);
-    cluster(it => it.tags.map(t => t.slice(1)));
-    return { moves, fresh };
-}
-
-if (typeof module !== 'undefined') module.exports = { tagsOf, extOf, normalize, sortItems, filterItems, safe, fileName, suggest };
+if (typeof module !== 'undefined') module.exports = { extOf, normalize, sortItems, filterItems, safe, fileName };
 else main();
 
 function main() {
@@ -128,19 +81,11 @@ function main() {
     const DONE_KEY = 'hoard.done';
     const APP_ID = '936619743392459';
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const csrf = () => (document.cookie.match(/(?:^|; )csrftoken=([^;]+)/) || [])[1] || '';
 
-    async function api(path, form) {
+    async function api(path) {
         const res = await fetch('/api/v1/' + path, {
-            method: form ? 'POST' : 'GET',
             credentials: 'include',
-            headers: {
-                'X-IG-App-ID': APP_ID,
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': csrf(),
-                ...(form && { 'Content-Type': 'application/x-www-form-urlencoded' }),
-            },
-            body: form ? new URLSearchParams(form) : undefined,
+            headers: { 'X-IG-App-ID': APP_ID, 'X-Requested-With': 'XMLHttpRequest' },
         });
         if (!res.ok) throw new Error(`${path} ${res.status}`);
         return res.json();
@@ -174,9 +119,6 @@ function main() {
         #hoard .tile img { width: 100%; height: 100%; object-fit: cover; }
         #hoard .tile span { position: absolute; left: 4px; bottom: 4px; background: #000a; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
         #hoard .tile.done::after { content: '✓'; position: absolute; top: 4px; right: 6px; }
-        #hoard .row { display: flex; gap: 8px; align-items: center; padding: 3px 0; }
-        #hoard .row img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; }
-        #hoard h3 { margin: 12px 0 6px; font-size: 13px; }
         #hoard-view { position: fixed; inset: 0; z-index: 2147483001; background: #000d; display: flex; overflow: auto; padding: 20px; gap: 16px; }
         #hoard-view .media { flex: 1; display: flex; flex-direction: column; gap: 8px; align-items: center; }
         #hoard-view .media img, #hoard-view .media video { max-width: 100%; max-height: 85vh; }
@@ -210,7 +152,6 @@ function main() {
             h('button', { textContent: 'refresh', onclick: () => run(load) }),
             colSel, typeSel, sortSel, search,
             h('button', { textContent: 'download shown', onclick: () => run(() => download(shown())) }),
-            h('button', { textContent: 'organize', onclick: organize }),
             statusEl,
             h('button', { textContent: '✕', onclick: close })),
         body);
@@ -304,52 +245,6 @@ function main() {
             await sleep(DL_DELAY);
         }
         render();
-    }
-
-    function organize() {
-        if (!lib) return;
-        const { moves, fresh } = suggest(lib.items, lib.cols);
-        const moveRows = moves.map(m => ({ m, box: h('input', { type: 'checkbox', checked: true }) }));
-        const freshRows = fresh.map(f => ({ f, box: h('input', { type: 'checkbox', checked: true }), name: h('input', { value: f.name }) }));
-        body.replaceChildren(
-            h('button', { textContent: '← library', onclick: render }), ' ',
-            h('button', { textContent: 'apply checked', onclick: () => run(() => apply(
-                moveRows.filter(r => r.box.checked).map(r => r.m),
-                freshRows.filter(r => r.box.checked && r.name.value.trim()).map(r => ({ ...r.f, name: r.name.value.trim() })))) }),
-            h('h3', { textContent: `into existing collections · ${moves.length}` }),
-            ...moveRows.map(({ m, box }) => h('label', { className: 'row' }, box,
-                h('img', { src: m.item.thumb, referrerPolicy: 'no-referrer' }),
-                `@${m.item.user} → ${colName(m.col)} (score ${m.score})`)),
-            h('h3', { textContent: `new collections · ${fresh.length}` }),
-            ...freshRows.map(({ f, box, name }) => h('label', { className: 'row' }, box, name,
-                `${f.items.length} posts`, ...f.items.slice(0, 8).map(it => h('img', { src: it.thumb, referrerPolicy: 'no-referrer' })))));
-        status(`${lib.items.filter(it => !it.cols.length).length} posts in no collection`);
-    }
-
-    async function apply(moves, fresh) {
-        let n = 0;
-        const total = moves.length + fresh.length;
-        for (const m of moves) {
-            await api(`media/${m.item.id}/save/`, { added_collection_ids: JSON.stringify([m.col]) });
-            m.item.cols.push(m.col);
-            GM_setValue(LIB_KEY, lib);
-            status(`apply ${++n}/${total}`);
-            await sleep(WRITE_DELAY);
-        }
-        for (const f of fresh) {
-            const r = await api('collections/create/', {
-                name: f.name,
-                added_media_ids: JSON.stringify(f.items.map(it => it.id)),
-                module_name: 'collection_create',
-            });
-            const id = String(r.collection_id);
-            lib.cols.push({ id, name: f.name });
-            f.items.forEach(it => it.cols.push(id));
-            GM_setValue(LIB_KEY, lib);
-            status(`apply ${++n}/${total}`);
-            await sleep(WRITE_DELAY);
-        }
-        organize();
     }
 
     function open() {
