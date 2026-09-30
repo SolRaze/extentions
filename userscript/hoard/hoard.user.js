@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.5
+// @version      1.6
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -197,7 +197,7 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 .ph { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
 .av { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--line); flex: none; }
 .ph b { display: block; font-weight: 600; }
-.ph span { color: var(--mute); font-size: 12px; }
+.ph span { display: block; color: var(--mute); font-size: 12px; }
 .stage { position: relative; background: #000; }
 .slide img, .slide video { display: block; width: 100%; max-height: 82vh; object-fit: contain; }
 .slide img { cursor: zoom-in; }
@@ -210,7 +210,9 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 .cap b { font-weight: 600; margin-right: 4px; }
 .cap .t { color: var(--tag); }
 .date { padding: 0 12px 14px; color: var(--mute); font-size: 10px; letter-spacing: .2px; text-transform: uppercase; }
-.date a { margin-left: 8px; text-transform: none; }
+.date a { margin-left: 8px; text-transform: none; color: var(--blue); }
+.with { padding: 0 12px 8px; color: var(--mute); font-size: 12px; }
+.with a { color: var(--tag); }
 .lb { position: fixed; inset: 0; z-index: 9; display: flex; align-items: center; justify-content: center; overflow: auto; background: #000f; cursor: zoom-in; }
 .lb img { max-width: 100vw; max-height: 100vh; }
 .lb.full { display: block; cursor: zoom-out; }
@@ -274,20 +276,33 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
         return esc(s).replace(/([#@][\\w.\\u00c0-\\uffff]+)/g, '<span class="t">$1</span>');
     }
 
+    // location name, linked to a map when it has coordinates
+    function place(l) {
+        return l.lat != null && l.lng != null
+            ? '<a href="https://www.google.com/maps?q=' + l.lat + ',' + l.lng + '" target="_blank">' + esc(l.name) + '</a>' : esc(l.name);
+    }
+
     var slide = 0, cur = null;
     function post(p, from) {
         var prof = D.profiles[p.user] || {};
+        var prof_url = p.profile || 'https://www.instagram.com/' + encodeURIComponent(p.user) + '/';
         cur = p; slide = 0;
         app.innerHTML = head('#c/' + encodeURIComponent(from), colTitle(from), '') +
             '<article class="post"><div class="ph">' +
             (prof.pic ? '<img class="av" src="' + esc(prof.pic) + '">' : '<div class="av"></div>') +
-            '<div><b>' + esc(p.user) + '</b>' + (prof.name ? '<span>' + esc(prof.name) + '</span>' : '') + '</div></div>' +
+            '<div><a href="' + esc(prof_url) + '" target="_blank"><b>' + esc(p.user) + '</b></a>' +
+            (prof.name || p.name ? '<span>' + esc(prof.name || p.name) + '</span>' : '') +
+            (p.location ? '<span class="loc">' + place(p.location) + '</span>' : '') + '</div></div>' +
             '<div class="stage"><div class="slide"></div>' +
             (p.media.length > 1 ? '<button class="nav l">&#8249;</button><button class="nav r">&#8250;</button>' : '') + '</div>' +
             (p.media.length > 1 ? '<div class="dots">' + p.media.map(function () { return '<i></i>'; }).join('') + '</div>' : '') +
             (p.caption ? '<div class="cap"><b>' + esc(p.user) + '</b>' + caption(p.caption) + '</div>' : '') +
-            '<div class="date">' + (p.taken ? new Date(p.taken * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '') +
-            '<a href="https://www.instagram.com/p/' + encodeURIComponent(p.code) + '/" target="_blank">open on instagram</a></div></article>';
+            (p.tagged && p.tagged.length ? '<div class="with">with ' + p.tagged.map(function (u) {
+                return '<a href="https://www.instagram.com/' + encodeURIComponent(u) + '/" target="_blank">@' + esc(u) + '</a>';
+            }).join(', ') + '</div>' : '') +
+            '<div class="date">' + (p.taken ? new Date(p.taken * 1000).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '') +
+            '<a href="' + esc(p.url || 'https://www.instagram.com/p/' + encodeURIComponent(p.code) + '/') + '" target="_blank">open post</a>' +
+            '<a href="' + esc(prof_url) + '" target="_blank">profile</a></div></article>';
         var l = app.querySelector('.nav.l'), r = app.querySelector('.nav.r');
         if (l) { l.onclick = function () { go(-1); }; r.onclick = function () { go(1); }; }
         show();
@@ -343,7 +358,7 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 </body></html>
 `;
 
-if (typeof module !== 'undefined') module.exports = { extOf, normalize, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
+if (typeof module !== 'undefined') module.exports = { extOf, normalize, record, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
 else main();
 
 function main() {
@@ -516,8 +531,11 @@ function main() {
                 ? h('video', { src: f.url, controls: true, loop: true })
                 : h('img', { src: f.url, referrerPolicy: 'no-referrer' }))),
             h('div', { className: 'side' },
-                h('a', { href: `/p/${it.code}/`, target: '_blank', textContent: `@${it.user} · open post` }),
-                `\n${it.taken ? new Date(it.taken * 1000).toLocaleDateString() : ''}`,
+                h('a', { href: postUrl(it.code), target: '_blank', textContent: 'open post' }), ' · ',
+                h('a', { href: profileUrl(it.user), target: '_blank', textContent: `@${it.user}` }),
+                `\n${it.taken ? new Date(it.taken * 1000).toLocaleString() : ''}`,
+                it.location ? `\n${it.location.name}` : null,
+                it.tagged?.length ? `\nwith ${it.tagged.map(u => '@' + u).join(', ')}` : null,
                 `\n${it.cols.map(colName).join(', ') || 'no collection'}\n\n${it.caption}`));
         viewer.prepend(h('button', { className: 'x', textContent: '✕', onclick: () => { viewer.hidden = true; } }));
         viewer.hidden = false;
@@ -547,8 +565,20 @@ function main() {
             const p = arc.posts[it.code];
             if (p) { p.cols = it.cols; p.order = it.order; }
         }
-        const todo = lib.items.filter(it => dirsOf(it, colName).some(d => !dirsHave(arc.posts[it.code]).includes(d)));
-        let n = 0, failed = 0;
+        // A post is due when a folder lacks its media or its sidecar is stale; a stale sidecar alone
+        // (posts synced before sidecars, or a refresh that brought new fields) rewrites JSON only.
+        const entry = (it, want, have) => {
+            const media = it.files.map((f, i) => ({ p: relPath(it, i, f.url, want[0]), v: f.video, w: f.w, h: f.h, alt: f.alt || '', dur: f.dur || 0 }));
+            return record(it, media, [...new Set([...have, ...want])]);
+        };
+        const side = (p) => sidecar(p, colName, arc.profiles[p.user]?.pic);
+        const due = (it) => {
+            const want = dirsOf(it, colName), have = dirsHave(arc.posts[it.code]);
+            const media = want.some(d => !have.includes(d));
+            return media || (it.files.length && arc.posts[it.code].side !== hash(side(entry(it, want, have))));
+        };
+        const todo = lib.items.filter(due);
+        let n = 0, failed = 0, fetched = 0;
         status(`sync 0/${todo.length}`);
         for (const it of todo) {
             n++;
@@ -563,27 +593,33 @@ function main() {
             try {
                 if (!it.files.length) throw new Error('no media');
                 const want = dirsOf(it, colName), have = dirsHave(arc.posts[it.code]);
-                for (const dir of want.filter(d => !have.includes(d))) {
+                const missing = want.filter(d => !have.includes(d));
+                for (const dir of missing) {
                     for (const [i, f] of it.files.entries()) await gmDownload(f.url, 'reference/' + relPath(it, i, f.url, dir));
                 }
+                if (missing.length) fetched++;
                 // the viewer loads each post from its first folder, which now exists on disk
-                const media = it.files.map((f, i) => ({ p: relPath(it, i, f.url, want[0]), v: f.video, w: f.w, h: f.h }));
-                const { code, user, taken, type, caption, cols, order } = it;
-                arc.posts[code] = { code, user, taken, type, caption, cols, order, media, dirs: [...new Set([...have, ...want])] };
+                const p = entry(it, want, have), json = side(p);
+                for (const dir of p.dirs) {
+                    await gmDownload('data:application/json;charset=utf-8,' + encodeURIComponent(json), 'reference/' + sidecarPath(it, dir));
+                }
+                p.side = hash(json);
+                arc.posts[it.code] = p;
                 GM_setValue(ARC_KEY, arc);
+                if (missing.length) await sleep(DL_DELAY);
             } catch (e) {
                 failed++;
                 console.warn('[hoard]', it.code, e.message);
                 if (failed === 1) status.first = e.message;
+                await sleep(DL_DELAY);
             }
-            await sleep(DL_DELAY);
         }
         arc.cols = lib.cols;
         GM_setValue(ARC_KEY, arc);
         const html = buildIndex(arc, Date.now());
         await gmDownload('data:text/html;charset=utf-8,' + encodeURIComponent(html), 'reference/index.html');
         render();
-        status(`synced ${todo.length - failed} · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}`);
+        status(`synced ${todo.length - failed} (${fetched} with media) · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}`);
     }
 
     function open() {
