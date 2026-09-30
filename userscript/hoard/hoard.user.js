@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.3.2
+// @version      1.3.3
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -20,6 +20,8 @@
 // @downloadURL https://update.greasyfork.org/scripts/598006/hoard.user.js
 // @updateURL https://update.greasyfork.org/scripts/598006/hoard.meta.js
 // ==/UserScript==
+// @namespace stays the old repo url: tampermonkey keys a script and its storage by name + namespace,
+// so a new one installs a second copy with an empty library.
 
 // Reads the saved feed through the same /api/v1 endpoints the web app calls, with the tab's own
 // session, and shows it in a full-screen library that covers the rest of Instagram. Sync writes
@@ -288,9 +290,10 @@ function main() {
         }
     }
 
-    async function pages(path, onItems) {
-        let max = '';
+    // pages.at holds the cursor being fetched, so a failed walk can resume there
+    async function pages(path, onItems, max = '') {
         do {
+            pages.at = max;
             const d = await api(path + (max ? (path.includes('?') ? '&' : '?') + 'max_id=' + encodeURIComponent(max) : ''));
             onItems(d.items || []);
             max = d.more_available ? d.next_max_id : '';
@@ -387,10 +390,12 @@ function main() {
                 batch => batch.forEach(c => { names[String(c.collection_id)] = c.collection_name; }));
             GM_setValue(NAMES_KEY, names);
         } catch (e) { console.warn('[hoard] collection list unavailable, using saved page names', e); }
-        const items = [];
-        const publish = () => {
+        // lib.next: the cursor a failed walk stopped at; the next refresh continues from it
+        const resume = lib?.next ? lib : null;
+        const items = resume ? resume.items : [];
+        const publish = (next) => {
             const ids = [...new Set(items.flatMap(it => it.cols))];
-            lib = { items, cols: ids.map(id => ({ id, name: names[id] || 'collection ' + id })), at: Date.now() };
+            lib = { items, cols: ids.map(id => ({ id, name: names[id] || 'collection ' + id })), at: Date.now(), next };
             GM_setValue(LIB_KEY, lib);
             render();
             return ids.filter(id => !names[id]).length;
@@ -400,13 +405,13 @@ function main() {
                 batch.forEach(x => x.media && items.push(normalize(
                     { ...x.media, saved_collection_ids: x.media.saved_collection_ids || x.saved_collection_ids }, items.length)));
                 status(`saved ${items.length}`);
-            });
+            }, resume?.next);
         } catch (e) {
             // keep what arrived: a partial library still shows and syncs
-            if (items.length) publish();
-            throw new Error(`${e.message} after ${items.length} posts`);
+            if (items.length) publish(pages.at);
+            throw new Error(`${e.message} after ${items.length} posts, refresh continues from there`);
         }
-        const unnamed = publish();
+        const unnamed = publish('');
         if (unnamed) status(`${unnamed} collection names unknown: open instagram.com/<you>/saved/, then refresh`);
     }
 
