@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.3
+// @version      1.3.1
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -274,13 +274,18 @@ function main() {
     const APP_ID = '936619743392459';
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+    // 5xx (Instagram's 572 included) and 429 are transient mid-paging: back off and retry the same cursor.
     async function api(path) {
-        const res = await fetch('/api/v1/' + path, {
-            credentials: 'include',
-            headers: { 'X-IG-App-ID': APP_ID, 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        if (!res.ok) throw new Error(`${path} ${res.status}`);
-        return res.json();
+        for (let wait = 5000; ; wait *= 3) {
+            const res = await fetch('/api/v1/' + path, {
+                credentials: 'include',
+                headers: { 'X-IG-App-ID': APP_ID, 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (res.ok) return res.json();
+            if ((res.status < 500 && res.status !== 429) || wait > 45000) throw new Error(`${path} ${res.status}`);
+            status(`instagram ${res.status}, retrying in ${wait / 1000}s`);
+            await sleep(wait);
+        }
     }
 
     async function pages(path, onItems) {
@@ -381,17 +386,25 @@ function main() {
             GM_setValue(NAMES_KEY, names);
         } catch (e) { console.warn('[hoard] collection list unavailable, using saved page names', e); }
         const items = [];
-        await pages('feed/saved/posts/', batch => {
-            batch.forEach(x => x.media && items.push(normalize(
-                { ...x.media, saved_collection_ids: x.media.saved_collection_ids || x.saved_collection_ids }, items.length)));
-            status(`saved ${items.length}`);
-        });
-        const ids = [...new Set(items.flatMap(it => it.cols))];
-        const cols = ids.map(id => ({ id, name: names[id] || 'collection ' + id }));
-        lib = { items, cols, at: Date.now() };
-        GM_setValue(LIB_KEY, lib);
-        render();
-        const unnamed = ids.filter(id => !names[id]).length;
+        const publish = () => {
+            const ids = [...new Set(items.flatMap(it => it.cols))];
+            lib = { items, cols: ids.map(id => ({ id, name: names[id] || 'collection ' + id })), at: Date.now() };
+            GM_setValue(LIB_KEY, lib);
+            render();
+            return ids.filter(id => !names[id]).length;
+        };
+        try {
+            await pages('feed/saved/posts/', batch => {
+                batch.forEach(x => x.media && items.push(normalize(
+                    { ...x.media, saved_collection_ids: x.media.saved_collection_ids || x.saved_collection_ids }, items.length)));
+                status(`saved ${items.length}`);
+            });
+        } catch (e) {
+            // keep what arrived: a partial library still shows and syncs
+            if (items.length) publish();
+            throw new Error(`${e.message} after ${items.length} posts`);
+        }
+        const unnamed = publish();
         if (unnamed) status(`${unnamed} collection names unknown: open instagram.com/<you>/saved/, then refresh`);
     }
 
