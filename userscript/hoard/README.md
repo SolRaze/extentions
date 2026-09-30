@@ -3,14 +3,14 @@ hoard
 instagram saved collections as offline reference library | synced to disk | read-only, never writes to the account
 
 usage
-hoard pill bottom-left | or tampermonkey menu open hoard | sync to disk | esc closes
+hoard pill bottom-left | or tampermonkey menu open hoard | sync to disk | esc or ✕ closes
 refresh pulls saved feed with tab session | cached until next refresh
 collection membership comes from each saved post | names from the collection list, else the saved page
 first refresh from instagram.com/<you>/saved/ | names kept after that
 in-tab library covers the rest of instagram | filter collection | type | user or caption | sort saved | newest | oldest | user
 
 sync
-sync to disk = refresh | download only posts not yet on disk | rewrite index.html
+sync to disk = download only posts not yet on disk from the loaded library | refresh first for new saves | rewrite index.html
 each post downloaded once | full res | every carousel item | into first collection's folder | else saved
 posts already on disk only get collections and saved order updated | unsaved posts stay
 archive of what is on disk lives in tampermonkey storage `hoard.archive` | local paths, never cdn urls

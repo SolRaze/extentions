@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.3.1
+// @version      1.3.2
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -323,6 +323,8 @@ function main() {
         #hoard-view .media img, #hoard-view .media video { max-width: 100%; max-height: 85vh; }
         #hoard-view .side { width: 320px; color: #ddd; white-space: pre-wrap; font: 13px/1.4 system-ui; }
         #hoard-view a { color: #8ab4ff; }
+        #hoard-view .x { position: fixed; top: 12px; right: 16px; z-index: 1; background: #1a1a1d; color: #ddd; border: 1px solid #333;
+                         border-radius: 50%; width: 32px; height: 32px; font: 16px system-ui; cursor: pointer; }
         #hoard-pill { position: fixed; left: 10px; bottom: 10px; z-index: 2147482999; background: #1a1a1d; color: #ddd;
                       border: 1px solid #333; border-radius: 12px; padding: 3px 10px; font: 12px system-ui; cursor: pointer; }
     `);
@@ -337,7 +339,7 @@ function main() {
     const viewer = h('div', { id: 'hoard-view', hidden: true });
     const statusEl = h('span', { className: 'status' });
     const body = h('div', { className: 'body' });
-    const status = (t) => { statusEl.textContent = t; };
+    const status = (t) => { statusEl.textContent = status.last = t; };
 
     const colSel = h('select', { onchange: () => { view.col = colSel.value; render(); } });
     const typeSel = h('select', { onchange: () => { view.type = typeSel.value; render(); } },
@@ -359,7 +361,7 @@ function main() {
 
     let busy = false;
     async function run(task) {
-        if (busy) return;
+        if (busy) return status(status.last + ' · busy, wait for it to finish');
         busy = true;
         try { await task(); } catch (e) { status('error: ' + e.message); console.error('[hoard]', e); }
         busy = false;
@@ -436,21 +438,28 @@ function main() {
                 h('a', { href: `/p/${it.code}/`, target: '_blank', textContent: `@${it.user} · open post` }),
                 `\n${it.taken ? new Date(it.taken * 1000).toLocaleDateString() : ''}`,
                 `\n${it.cols.map(colName).join(', ') || 'no collection'}\n\n${it.caption}`));
+        viewer.prepend(h('button', { className: 'x', textContent: '✕', onclick: () => { viewer.hidden = true; } }));
         viewer.hidden = false;
     }
-    viewer.addEventListener('click', e => { if (e.target === viewer) viewer.hidden = true; });
+    // .media fills the backdrop, so a click on its empty space closes too
+    viewer.addEventListener('click', e => { if (e.target === viewer || e.target.className === 'media') viewer.hidden = true; });
 
-    const gmDownload = (url, name) => new Promise((ok, fail) => GM_download({
-        url, name, conflictAction: 'overwrite', onload: ok,
-        onerror: e => fail(new Error(e?.error || 'failed')),
-        ontimeout: () => fail(new Error('timeout')),
-    }));
+    // GM_download never calls back when the download is blocked outright (extension not whitelisted,
+    // download mode not browser api), so a hard timeout turns that into a visible failure.
+    const gmDownload = (url, name) => new Promise((ok, fail) => {
+        const t = setTimeout(() => fail(new Error('no response, check tampermonkey download settings')), 60000);
+        GM_download({
+            url, name, conflictAction: 'overwrite', onload: () => { clearTimeout(t); ok(); },
+            onerror: e => { clearTimeout(t); fail(new Error(e?.error || 'failed')); },
+            ontimeout: () => { clearTimeout(t); fail(new Error('timeout')); },
+        });
+    });
 
-    // Refreshes, then downloads only posts not yet in the archive, each once into its first
+    // Uses the library already loaded (refresh first for new saves), then downloads only posts not yet in the archive, each once into its first
     // collection's folder (else "saved"). Posts already on disk just get their collections and
     // order updated. The archive is saved after every post, so an interrupted sync resumes.
     async function sync() {
-        await load();
+        if (!lib) await load();
         const arc = archive();
         for (const it of lib.items) {
             const p = arc.posts[it.code];
@@ -458,8 +467,10 @@ function main() {
         }
         const fresh = lib.items.filter(it => !arc.posts[it.code]);
         let n = 0, failed = 0;
+        status(`sync 0/${fresh.length}`);
         for (const it of fresh) {
             n++;
+            status(`sync ${n}/${fresh.length} @${it.user}${failed ? ` · ${failed} failed` : ''}`);
             if (!arc.profiles[it.user] && it.pic) {
                 const pic = `profiles/${safe(it.user)}.jpg`;
                 try {
@@ -482,8 +493,8 @@ function main() {
             } catch (e) {
                 failed++;
                 console.warn('[hoard]', it.code, e.message);
+                if (failed === 1) status.first = e.message;
             }
-            status(`sync ${n}/${fresh.length}${failed ? ` · ${failed} failed` : ''}`);
             await sleep(DL_DELAY);
         }
         arc.cols = lib.cols;
@@ -491,7 +502,7 @@ function main() {
         const html = buildIndex(arc, Date.now());
         await gmDownload('data:text/html;charset=utf-8,' + encodeURIComponent(html), 'reference/index.html');
         render();
-        status(`synced ${fresh.length - failed} new · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed, sync again` : ''}`);
+        status(`synced ${fresh.length - failed} new · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}`);
     }
 
     function open() {
@@ -504,10 +515,12 @@ function main() {
         viewer.hidden = true;
         document.documentElement.style.overflow = '';
     }
-    document.addEventListener('keydown', e => {
+    // capture phase: Instagram's own handlers stop Escape before it bubbles to document
+    window.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || root.hidden) return;
+        e.stopPropagation();
         if (!viewer.hidden) viewer.hidden = true; else close();
-    });
+    }, true);
     GM_registerMenuCommand('open hoard', open);
     GM_registerMenuCommand('sync to disk', () => run(sync));
 }
