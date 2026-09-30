@@ -20,7 +20,7 @@ archive of what is on disk lives in tampermonkey storage `hoard.archive` | local
 saved after every post | interrupted sync resumes | failures retry on next sync
 
 disk
-paths sit under the browser download folder | Downloads here | pass the real dir to vault.js and HOARD_DIR
+paths sit under the browser download folder | Downloads here
 Downloads/reference/index.html | offline viewer, library data inlined, opens from file://
 Downloads/reference/<collection>/<user>_<code>[_n].<ext>
 Downloads/reference/unsorted/<user>_<code>[_n].<ext>
@@ -32,14 +32,6 @@ collection | square 3-column grid | album and video icons
 post | profile on top | carousel with arrows, dots, ← → | caption with tags and mentions | date | link to original
 no likes | no comments
 photo click fits screen | second click 1:1 | third closes | esc goes back
-
-obsidian
-node vault.js [dir] | dir defaults to ~/Downloads/reference | run after sync
-hoard folder becomes its own vault | not ~/Notes | no sync, media embedded in place
-notes/posts/<code>.md | notes/authors/@<user>.md | notes/collections/collection <name>.md
-tags collection/<name> | type/<photo|album|video|reel> | caption hashtags inline
-graph.json written once | tag nodes on | attachments off
-notes/ regenerated whole every run | hand-written notes go outside it
 
 tampermonkey setup
 download mode browser api | subfolders and overwrite need it
@@ -53,8 +45,6 @@ per-collection feeds 404 since instagram retired them | collections rebuilt from
 hide selectors are instagram's generated class names | a deploy renames them | stale ones just stop hiding
 media id stays a string | pk overflows a js number
 tampermonkey storage cleared = archive lost | next sync redownloads everything
-
-selftest node selftest.js
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 
