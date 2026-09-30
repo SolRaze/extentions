@@ -15,9 +15,9 @@ archive of what is on disk lives in tampermonkey storage `hoard.archive` | local
 saved after every post | interrupted sync resumes | failures retry on next sync
 
 disk
-Downloads/instagram/index.html | offline viewer, library data inlined, opens from file://
-Downloads/instagram/<collection>/<user>_<code>[_n].<ext>
-Downloads/instagram/profiles/<user>.jpg
+Downloads/reference/index.html | offline viewer, library data inlined, opens from file://
+Downloads/reference/<collection>/<user>_<code>[_n].<ext>
+Downloads/reference/profiles/<user>.jpg
 
 viewer
 collections grid | 2x2 cover | all posts first
@@ -27,7 +27,7 @@ no likes | no comments
 photo click fits screen | second click 1:1 | third closes | esc goes back
 
 obsidian
-node vault.js [dir] | dir defaults to ~/Downloads/instagram | run after sync
+node vault.js [dir] | dir defaults to ~/Downloads/reference | run after sync
 hoard folder becomes its own vault | not ~/Notes | no sync, media embedded in place
 notes/posts/<code>.md | notes/authors/@<user>.md | notes/collections/collection <name>.md
 tags collection/<name> | type/<photo|album|video|reel> | caption hashtags inline

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Turns a hoard folder into an Obsidian vault: one note per post, author and collection, built
 // from the window.HOARD data inlined in index.html. Media is embedded in place, never copied.
-// Run after a sync: node vault.js [dir]   (dir defaults to ~/Downloads/instagram)
+// Run after a sync: node vault.js [dir]   (dir defaults to ~/Downloads/reference)
 // notes/ is regenerated whole on every run — notes written by hand belong outside it.
 // Caption hashtags stay inline, where Obsidian reads them as tags on its own.
 const fs = require('fs');
@@ -67,7 +67,7 @@ function buildNotes(D) {
 module.exports = { tagOf, buildNotes };
 
 if (require.main === module) {
-    const dir = path.resolve(process.argv[2] || path.join(os.homedir(), 'Downloads', 'instagram'));
+    const dir = path.resolve(process.argv[2] || path.join(os.homedir(), 'Downloads', 'reference'));
     const notes = buildNotes(readHoard(dir));
     fs.rmSync(path.join(dir, 'notes'), { recursive: true, force: true });
     for (const [rel, text] of Object.entries(notes)) {

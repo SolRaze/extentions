@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.2
+// @version      1.2.1
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -23,7 +23,7 @@
 
 // Reads the saved feed through the same /api/v1 endpoints the web app calls, with the tab's own
 // session, and shows it in a full-screen library that covers the rest of Instagram. Sync writes
-// every post once into Downloads/instagram/<collection>/ and rewrites instagram/index.html, a
+// every post once into Downloads/reference/<collection>/ and rewrites reference/index.html, a
 // self-contained offline viewer with the library data inlined — file:// pages cannot fetch JSON.
 
 const PAGE_DELAY = 1500;  // ms between feed pages
@@ -78,7 +78,7 @@ function filterItems(items, { col = '', type = '', q = '' } = {}) {
 
 const safe = (s) => String(s).replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/^\.+/, '').trim().slice(0, 80) || '_';
 
-// Path under instagram/, which is also the src the offline viewer loads.
+// Path under reference/, which is also the src the offline viewer loads.
 const relPath = (it, i, url, folder) =>
     `${safe(folder)}/${safe(it.user)}_${it.code}${it.files.length > 1 ? `_${i + 1}` : ''}.${extOf(url)}`;
 
@@ -433,7 +433,7 @@ function main() {
             if (!arc.profiles[it.user] && it.pic) {
                 const pic = `profiles/${safe(it.user)}.jpg`;
                 try {
-                    await gmDownload(it.pic, 'instagram/' + pic);
+                    await gmDownload(it.pic, 'reference/' + pic);
                     arc.profiles[it.user] = { name: it.name, pic };
                 } catch (e) { console.warn('[hoard] profile', it.user, e.message); }
             }
@@ -443,7 +443,7 @@ function main() {
                 const media = [];
                 for (const [i, f] of it.files.entries()) {
                     const p = relPath(it, i, f.url, folder);
-                    await gmDownload(f.url, 'instagram/' + p);
+                    await gmDownload(f.url, 'reference/' + p);
                     media.push({ p, v: f.video, w: f.w, h: f.h });
                 }
                 const { code, user, taken, type, caption, cols, order } = it;
@@ -459,7 +459,7 @@ function main() {
         arc.cols = lib.cols;
         GM_setValue(ARC_KEY, arc);
         const html = buildIndex(arc, Date.now());
-        await gmDownload('data:text/html;charset=utf-8,' + encodeURIComponent(html), 'instagram/index.html');
+        await gmDownload('data:text/html;charset=utf-8,' + encodeURIComponent(html), 'reference/index.html');
         render();
         status(`synced ${fresh.length - failed} new · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed, sync again` : ''}`);
     }
