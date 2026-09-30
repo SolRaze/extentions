@@ -4,7 +4,9 @@ instagram saved collections as offline reference library | synced to disk | read
 
 usage
 hoard pill bottom-left | or tampermonkey menu open hoard | sync to disk | esc closes
-refresh pulls saved feed + collections with tab session | cached until next refresh
+refresh pulls saved feed with tab session | cached until next refresh
+collection membership comes from each saved post | names from the collection list, else the saved page
+first refresh from instagram.com/<you>/saved/ | names kept after that
 in-tab library covers the rest of instagram | filter collection | type | user or caption | sort saved | newest | oldest | user
 
 sync
@@ -41,6 +43,7 @@ browser setting ask where to save off | else a prompt per file
 
 gotchas
 throttled 1.5 s per feed page | 0.8 s per downloaded post | fast scraping risks account flag
+per-collection feeds 404 since instagram retired them | collections rebuilt from the saved feed
 media id stays a string | pk overflows a js number
 tampermonkey storage cleared = archive lost | next sync redownloads everything
 

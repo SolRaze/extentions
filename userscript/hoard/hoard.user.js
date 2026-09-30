@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.2.1
+// @version      1.3
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -55,7 +55,8 @@ function normalize(m, order) {
         // candidates run largest first: the last one still 320px wide is the grid thumbnail
         thumb: (cands.filter(c => c.width >= 320).pop() || cands[0] || {}).url || '',
         files: parts.map(pickFile).filter(Boolean),
-        cols: [],
+        // the per-collection feeds are gone (404); membership rides on each saved item
+        cols: (m.saved_collection_ids || []).map(String),
     };
 }
 
@@ -359,23 +360,39 @@ function main() {
         busy = false;
     }
 
+    // Collection names by id, merged across refreshes: the list endpoint may 404, and the saved
+    // page's collection links (/<user>/saved/<slug>/<id>/) are the fallback source.
+    const NAMES_KEY = 'hoard.cols';
+    function learnNames() {
+        const names = GM_getValue(NAMES_KEY, {});
+        for (const a of document.querySelectorAll('a[href*="/saved/"]')) {
+            const m = /\/saved\/([^/]+)\/(\d+)\/?$/.exec(new URL(a.href).pathname);
+            if (m && m[1] !== 'all-posts') names[m[2]] = a.textContent.trim() || decodeURIComponent(m[1]).replace(/-/g, ' ');
+        }
+        GM_setValue(NAMES_KEY, names);
+        return names;
+    }
+
     async function load() {
-        const cols = [];
-        await pages('collections/list/?collection_types=' + encodeURIComponent('["MEDIA"]'),
-            batch => batch.forEach(c => cols.push({ id: String(c.collection_id), name: c.collection_name })));
+        const names = learnNames();
+        try {
+            await pages('collections/list/?collection_types=' + encodeURIComponent('["MEDIA"]'),
+                batch => batch.forEach(c => { names[String(c.collection_id)] = c.collection_name; }));
+            GM_setValue(NAMES_KEY, names);
+        } catch (e) { console.warn('[hoard] collection list unavailable, using saved page names', e); }
         const items = [];
         await pages('feed/saved/posts/', batch => {
-            batch.forEach(x => x.media && items.push(normalize(x.media, items.length)));
+            batch.forEach(x => x.media && items.push(normalize(
+                { ...x.media, saved_collection_ids: x.media.saved_collection_ids || x.saved_collection_ids }, items.length)));
             status(`saved ${items.length}`);
         });
-        const byId = new Map(items.map(it => [it.id, it]));
-        for (const [i, c] of cols.entries()) {
-            status(`collection ${i + 1}/${cols.length} ${c.name}`);
-            await pages(`feed/collection/${c.id}/posts/`, batch => batch.forEach(x => byId.get(String(x.media?.id))?.cols.push(c.id)));
-        }
+        const ids = [...new Set(items.flatMap(it => it.cols))];
+        const cols = ids.map(id => ({ id, name: names[id] || 'collection ' + id }));
         lib = { items, cols, at: Date.now() };
         GM_setValue(LIB_KEY, lib);
         render();
+        const unnamed = ids.filter(id => !names[id]).length;
+        if (unnamed) status(`${unnamed} collection names unknown: open instagram.com/<you>/saved/, then refresh`);
     }
 
     const shown = () => sortItems(filterItems(lib?.items || [], view), view.sort);

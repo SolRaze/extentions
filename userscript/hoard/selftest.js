@@ -28,6 +28,8 @@ assert.deepStrictEqual(n.files, [
 assert.deepStrictEqual([n.name, n.pic], ['Ann B', 'https://x.cdninstagram.com/ann.jpg']);
 assert.strictEqual(normalize({ id: 1, media_type: 2, product_type: 'clips' }, 0).type, 'reel');
 assert.deepStrictEqual(normalize({ id: 1, media_type: 1 }, 0).files, [], 'missing media gives no files, not a crash');
+assert.deepStrictEqual(normalize({ id: 1, saved_collection_ids: [17, '18'] }, 0).cols, ['17', '18'], 'collection ids as strings');
+assert.deepStrictEqual(n.cols, []);
 
 // sort + filter
 const it = (o) => ({ id: o.code, code: o.code, user: 'u', taken: 0, type: 'photo', caption: '', cols: [], files: [{ url: 'https://x/a.jpg' }], ...o });
