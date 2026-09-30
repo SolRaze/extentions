@@ -12,7 +12,7 @@ set -euo pipefail
 dir=${1:?usage: greasyfork userscript/<name> "<changelog>"}
 log=${2:?changelog missing}
 js=$(ls "$dir"/*.user.js)
-id=$(rg -o 'update\.greasyfork\.org/scripts/([0-9]+)/' -r '$1' "$js" | head -1)
+id=$(sed -nE 's|.*update\.greasyfork\.org/scripts/([0-9]+)/.*|\1|p' "$js" | head -1)
 [ -n "$id" ] || { echo "greasyfork: no greasyfork @updateURL in $js" >&2; exit 1; }
 
 vault=${GF_VAULT:-$HOME/Documents/Vault/ojks.kdbx}
@@ -23,7 +23,7 @@ kp() { keepassxc-cli show -k "$key" --no-password "$vault" "$entry" "$@" 2>/dev/
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 C() { curl -sf -c "$tmp/jar" -b "$tmp/jar" -A Mozilla/5.0 "$@"; }
-tok() { rg -o 'name="authenticity_token" value="[^"]+"' "$1" | head -1 | sed 's/.*value="//;s/"$//'; }
+tok() { grep -oE 'name="authenticity_token" value="[^"]+"' "$1" | head -1 | sed 's/.*value="//;s/"$//'; }
 site=https://greasyfork.org/en
 
 # sign-in is two posts: the password, then the same form again with the TOTP code
@@ -34,20 +34,23 @@ login() {
         --data-urlencode "user[remember_me]=1" "${@:2}"
 }
 login "$tmp/a.html" -o "$tmp/b.html"
-login "$tmp/b.html" --data-urlencode "user[otp_attempt]=$(kp --totp | rg '^[0-9]{6}$')" -o /dev/null
+login "$tmp/b.html" --data-urlencode "user[otp_attempt]=$(kp --totp | grep -E '^[0-9]{6}$')" -o /dev/null
 
 u=$site/scripts/$id/versions
 C "$u/new" -o "$tmp/c.html"
+# the form posts to the slugged path; the id-only one answers 422
+act=https://greasyfork.org$(grep -oE 'id="new_script_version"[^>]*action="[^"]+"' "$tmp/c.html" | sed 's/.*action="//;s/"$//')
 # markdown needs two trailing spaces for the readme's line breaks
 sed 's/$/  /' "$dir/README.md" > "$tmp/info.md"
-C -e "$u/new" "$u" -F "authenticity_token=$(tok "$tmp/c.html")" -F "script[script_type]=1" -F "name=" -F "description=" \
+C -e "$u/new" "$act" -F "authenticity_token=$(tok "$tmp/c.html")" -F "script[script_type]=1" -F "name=" -F "description=" \
     -F "script_version[code]=<$js" \
     -F "script_version[additional_info][0][attribute_default]=true" -F "script_version[additional_info][0][value_markup]=markdown" \
     -F "script_version[additional_info][0][attribute_value]=<$tmp/info.md" \
     -F "script_version[changelog]=$log" -F "script_version[changelog_markup]=markdown" -F "script_version[attachments][]=" \
     -F "script[adult_content_self_report]=0" -F "commit=Post new version" -o /dev/null -w 'post %{http_code}\n'
 
-want=$(rg -o '@version\s+(\S+)' -r '$1' "$js" | head -1)
-meta=$(rg -o '@updateURL\s+(\S+)' -r '$1' "$js" | head -1)
-live=$(curl -s "$meta?$RANDOM" | rg -o '@version\s+(\S+)' -r '$1' | head -1)
+ver() { sed -nE 's|^// @version +([^ ]+).*|\1|p' | head -1; }
+want=$(ver < "$js")
+meta=$(sed -nE 's|^// @updateURL +([^ ]+).*|\1|p' "$js" | head -1)
+live=$(curl -s "$meta?$RANDOM" | ver)
 echo "local $want | greasyfork $live"
