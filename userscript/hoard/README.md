@@ -7,6 +7,8 @@ hoard pill bottom-left | or tampermonkey menu open hoard | sync to disk | esc or
 refresh pulls saved feed with tab session | cached until next refresh
 collection membership comes from each saved post | names from the collection list, else the saved page
 first refresh from instagram.com/<you>/saved/ | names kept after that
+tab title reads saved on every instagram page
+hide elements on by default | 20 selectors in HIDE | tampermonkey menu hide elements on/off | choice kept
 in-tab library covers the rest of instagram | filter collection | type | user or caption | sort saved | newest | oldest | user
 
 sync
@@ -48,6 +50,7 @@ gotchas
 instagram 5xx or 429 retried after 5, 15, 45 s | still failing keeps the posts fetched so far | next refresh continues from that page
 throttled 1.5 s per feed page | 0.8 s per downloaded post | fast scraping risks account flag
 per-collection feeds 404 since instagram retired them | collections rebuilt from the saved feed
+hide selectors are instagram's generated class names | a deploy renames them | stale ones just stop hiding
 media id stays a string | pk overflows a js number
 tampermonkey storage cleared = archive lost | next sync redownloads everything
 
