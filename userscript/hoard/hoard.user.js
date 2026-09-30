@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.3.3
+// @version      1.4
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -80,6 +80,11 @@ function filterItems(items, { col = '', type = '', q = '' } = {}) {
 }
 
 const safe = (s) => String(s).replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/^\.+/, '').trim().slice(0, 80) || '_';
+
+// Folders a post belongs in: one per collection, "unsorted" when it is in none.
+const dirsOf = (it, name) => it.cols.length ? [...new Set(it.cols.map(id => safe(name(id))))] : ['unsorted'];
+// Folders an archived post already has on disk; entries without dirs hold one, the media's own.
+const dirsHave = (p) => p ? p.dirs || [p.media[0]?.p.split('/')[0]] : [];
 
 // Path under reference/, which is also the src the offline viewer loads.
 const relPath = (it, i, url, folder) =>
@@ -267,7 +272,7 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 </body></html>
 `;
 
-if (typeof module !== 'undefined') module.exports = { extOf, normalize, sortItems, filterItems, safe, relPath, buildIndex };
+if (typeof module !== 'undefined') module.exports = { extOf, normalize, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
 else main();
 
 function main() {
@@ -460,9 +465,10 @@ function main() {
         });
     });
 
-    // Uses the library already loaded (refresh first for new saves), then downloads only posts not yet in the archive, each once into its first
-    // collection's folder (else "saved"). Posts already on disk just get their collections and
-    // order updated. The archive is saved after every post, so an interrupted sync resumes.
+    // Uses the library already loaded (refresh first for new saves). Every post gets a copy in each
+    // of its collections' folders (else "unsorted"); only folders it does not have yet are
+    // downloaded, so a post added to another collection gets one new copy. Nothing is deleted.
+    // The archive is saved after every post, so an interrupted sync resumes.
     async function sync() {
         if (!lib) await load();
         const arc = archive();
@@ -470,12 +476,12 @@ function main() {
             const p = arc.posts[it.code];
             if (p) { p.cols = it.cols; p.order = it.order; }
         }
-        const fresh = lib.items.filter(it => !arc.posts[it.code]);
+        const todo = lib.items.filter(it => dirsOf(it, colName).some(d => !dirsHave(arc.posts[it.code]).includes(d)));
         let n = 0, failed = 0;
-        status(`sync 0/${fresh.length}`);
-        for (const it of fresh) {
+        status(`sync 0/${todo.length}`);
+        for (const it of todo) {
             n++;
-            status(`sync ${n}/${fresh.length} @${it.user}${failed ? ` · ${failed} failed` : ''}`);
+            status(`sync ${n}/${todo.length} @${it.user}${failed ? ` · ${failed} failed` : ''}`);
             if (!arc.profiles[it.user] && it.pic) {
                 const pic = `profiles/${safe(it.user)}.jpg`;
                 try {
@@ -485,15 +491,14 @@ function main() {
             }
             try {
                 if (!it.files.length) throw new Error('no media');
-                const folder = it.cols[0] ? colName(it.cols[0]) : 'saved';
-                const media = [];
-                for (const [i, f] of it.files.entries()) {
-                    const p = relPath(it, i, f.url, folder);
-                    await gmDownload(f.url, 'reference/' + p);
-                    media.push({ p, v: f.video, w: f.w, h: f.h });
+                const want = dirsOf(it, colName), have = dirsHave(arc.posts[it.code]);
+                for (const dir of want.filter(d => !have.includes(d))) {
+                    for (const [i, f] of it.files.entries()) await gmDownload(f.url, 'reference/' + relPath(it, i, f.url, dir));
                 }
+                // the viewer loads each post from its first folder, which now exists on disk
+                const media = it.files.map((f, i) => ({ p: relPath(it, i, f.url, want[0]), v: f.video, w: f.w, h: f.h }));
                 const { code, user, taken, type, caption, cols, order } = it;
-                arc.posts[code] = { code, user, taken, type, caption, cols, order, media };
+                arc.posts[code] = { code, user, taken, type, caption, cols, order, media, dirs: [...new Set([...have, ...want])] };
                 GM_setValue(ARC_KEY, arc);
             } catch (e) {
                 failed++;
@@ -507,7 +512,7 @@ function main() {
         const html = buildIndex(arc, Date.now());
         await gmDownload('data:text/html;charset=utf-8,' + encodeURIComponent(html), 'reference/index.html');
         render();
-        status(`synced ${fresh.length - failed} new · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}`);
+        status(`synced ${todo.length - failed} · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}`);
     }
 
     function open() {

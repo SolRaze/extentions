@@ -1,6 +1,6 @@
 // Self-check for the pure helpers in hoard.user.js. Run: node selftest.js
 const assert = require('assert');
-const { extOf, normalize, sortItems, filterItems, safe, relPath, buildIndex } = require('./hoard.user.js');
+const { extOf, normalize, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex } = require('./hoard.user.js');
 
 // extOf: from the path only, a signed query string must not leak in
 assert.strictEqual(extOf('https://scontent.cdninstagram.com/v/t51/123_n.jpg?stp=dst-jpg&_nc=1'), 'jpg');
@@ -57,6 +57,14 @@ assert.strictEqual(safe('..'), '_');
 assert.strictEqual(relPath(items[0], 0, 'https://x/a.jpg?x=1', 'Art / Refs'), 'Art _ Refs/zed_a.jpg');
 const multi = it({ code: 'm', user: 'amy', files: [{ url: 'https://x/1.jpg' }, { url: 'https://x/2.mp4' }] });
 assert.strictEqual(relPath(multi, 1, multi.files[1].url, 'saved'), 'saved/amy_m_2.mp4');
+
+// folders: one per collection, unsorted when none; legacy archive entries count their media folder
+const nm = (id) => ({ c1: 'Art / Refs', c2: 'Cars' })[id];
+assert.deepStrictEqual(dirsOf(it({ cols: ['c1', 'c2'] }), nm), ['Art _ Refs', 'Cars']);
+assert.deepStrictEqual(dirsOf(it({}), nm), ['unsorted']);
+assert.deepStrictEqual(dirsHave({ media: [{ p: 'saved/a.jpg' }] }), ['saved']);
+assert.deepStrictEqual(dirsHave({ dirs: ['Cars'], media: [] }), ['Cars']);
+assert.deepStrictEqual(dirsHave(undefined), []);
 
 // buildIndex: data inlined, posts in saved order, a caption cannot break out of the script block
 const arc = {

@@ -11,14 +11,17 @@ in-tab library covers the rest of instagram | filter collection | type | user or
 
 sync
 sync to disk = download only posts not yet on disk from the loaded library | refresh first for new saves | rewrite index.html
-each post downloaded once | full res | every carousel item | into first collection's folder | else saved
-posts already on disk only get collections and saved order updated | unsaved posts stay
+copy per collection folder | post in 2 collections sits in both | no collection goes to unsorted
+full res | every carousel item | only missing folders downloaded | post added to a collection gets one new copy
+unsaved posts and old folders stay | nothing deleted
 archive of what is on disk lives in tampermonkey storage `hoard.archive` | local paths, never cdn urls
 saved after every post | interrupted sync resumes | failures retry on next sync
 
 disk
+paths sit under the browser download folder | Downloads here | pass the real dir to vault.js and HOARD_DIR
 Downloads/reference/index.html | offline viewer, library data inlined, opens from file://
 Downloads/reference/<collection>/<user>_<code>[_n].<ext>
+Downloads/reference/unsorted/<user>_<code>[_n].<ext>
 Downloads/reference/profiles/<user>.jpg
 
 viewer
