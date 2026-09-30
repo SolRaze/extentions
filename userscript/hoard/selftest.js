@@ -74,4 +74,20 @@ assert.deepStrictEqual(data.posts.map(p => p.code), ['a', 'b']);
 assert.strictEqual(data.posts[1].caption, 'x</script><b>');
 assert.strictEqual(buildIndex({ posts: {} }, 1).includes('"cols":[]'), true, 'empty archive still renders');
 
+// vault.js: notes per post, author, collection; tags Obsidian accepts
+const { tagOf, buildNotes } = require('./vault.js');
+assert.strictEqual(tagOf('Art Refs'), 'art-refs');
+assert.strictEqual(tagOf('Café #1'), 'café-1');
+assert.strictEqual(tagOf('2024'), '', 'all-digit tags are not tags in Obsidian');
+const notes = buildNotes(data);
+assert.deepStrictEqual(Object.keys(notes).sort(), [
+    'notes/authors/@amy.md', 'notes/authors/@zed.md', 'notes/collections/collection Cars.md',
+    'notes/posts/a.md', 'notes/posts/b.md',
+]);
+assert.ok(notes['notes/posts/a.md'].includes('tags: [collection/cars]\n'), 'no type tag when the type is unknown');
+assert.ok(notes['notes/posts/a.md'].includes('[[@zed]] · [[collection Cars]]'));
+assert.ok(notes['notes/posts/a.md'].includes('![[Cars/zed_a.jpg]]'));
+assert.ok(notes['notes/posts/b.md'].includes('[[@amy]] · no collection'));
+assert.ok(notes['notes/authors/@zed.md'].includes('![[profiles/zed.jpg|96]]'));
+
 console.log('ok');

@@ -26,6 +26,14 @@ post | profile on top | carousel with arrows, dots, ← → | caption with tags 
 no likes | no comments
 photo click fits screen | second click 1:1 | third closes | esc goes back
 
+obsidian
+node vault.js [dir] | dir defaults to ~/Downloads/instagram | run after sync
+hoard folder becomes its own vault | not ~/Notes | no sync, media embedded in place
+notes/posts/<code>.md | notes/authors/@<user>.md | notes/collections/collection <name>.md
+tags collection/<name> | type/<photo|album|video|reel> | caption hashtags inline
+graph.json written once | tag nodes on | attachments off
+notes/ regenerated whole every run | hand-written notes go outside it
+
 tampermonkey setup
 download mode browser api | subfolders and overwrite need it
 whitelist `.html` `.jpg` `.mp4` `.webp` extensions
