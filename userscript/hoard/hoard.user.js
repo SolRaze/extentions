@@ -42,16 +42,30 @@ const pickFile = (x) => {
     const v = x.video_versions?.[0];
     const i = x.image_versions2?.candidates?.[0];
     const f = v || i;
-    return f?.url ? { url: f.url, video: !!v, w: f.width || 0, h: f.height || 0 } : null;
+    return f?.url ? {
+        url: f.url, video: !!v, w: f.width || 0, h: f.height || 0,
+        alt: x.accessibility_caption || '', dur: v ? x.video_duration || 0 : 0,
+    } : null;
 };
 
+const postUrl = (code) => `https://www.instagram.com/p/${code}/`;
+const profileUrl = (user) => `https://www.instagram.com/${user}/`;
+
 // Media ids are "<pk>_<owner>" strings; the numeric pk overflows a JS number, so it is never used.
+// User pks fit a number; pk_id is the API's own string form and wins when present.
 function normalize(m, order) {
     const parts = m.carousel_media?.length ? m.carousel_media : [m];
     const cands = parts[0].image_versions2?.candidates || [];
+    const loc = m.location;
+    const clip = m.clips_metadata;
+    const music = clip?.music_info?.music_asset_info;
+    const sound = clip?.original_sound_info;
+    const audio = music ? { title: music.title || '', artist: music.display_artist || '' }
+        : sound ? { title: sound.original_audio_title || '', artist: sound.ig_artist?.username || '' } : null;
     return {
         id: String(m.id), code: m.code, order,
-        user: m.user?.username || '', name: m.user?.full_name || '', pic: m.user?.profile_pic_url || '',
+        user: m.user?.username || '', uid: String(m.user?.pk_id ?? m.user?.pk ?? ''),
+        name: m.user?.full_name || '', pic: m.user?.profile_pic_url || '',
         taken: m.taken_at || 0, caption: m.caption?.text || '',
         type: m.media_type === 8 ? 'album' : m.media_type === 2 ? (m.product_type === 'clips' ? 'reel' : 'video') : 'photo',
         // candidates run largest first: the last one still 320px wide is the grid thumbnail
@@ -59,8 +73,39 @@ function normalize(m, order) {
         files: parts.map(pickFile).filter(Boolean),
         // the per-collection feeds are gone (404); membership rides on each saved item
         cols: (m.saved_collection_ids || []).map(String),
+        location: loc?.name ? { name: loc.name, lat: loc.lat ?? null, lng: loc.lng ?? null } : null,
+        // carousel items carry their own tags
+        tagged: [...new Set([m, ...parts].flatMap(x => x.usertags?.in || []).map(t => t.user?.username).filter(Boolean))],
+        coauthors: (m.coauthor_producers || []).map(u => u.username).filter(Boolean),
+        audio,
     };
 }
+
+// Archive entry: everything the viewer and the sidecar need, local paths only.
+function record(it, media, dirs) {
+    const { code, user, uid, name, taken, type, caption, cols, order } = it;
+    return {
+        code, user, uid: uid || '', name: name || '', taken, type, caption, cols, order,
+        url: postUrl(code), profile: profileUrl(user),
+        location: it.location || null, tagged: it.tagged || [], coauthors: it.coauthors || [], audio: it.audio || null,
+        media, dirs,
+    };
+}
+
+// <dir>/<user>_<code>.json beside the media; every path in it is relative to the sidecar itself.
+function sidecar(p, colName, pic) {
+    const { media, dirs, cols, taken, ...rest } = p;
+    return JSON.stringify({
+        ...rest,
+        taken, datetime: taken ? new Date(taken * 1000).toISOString() : '',
+        pic: pic ? '../' + pic : '',
+        cols, collections: cols.map(colName),
+        media: media.map(m => ({ ...m, p: m.p.split('/').pop() })),
+    }, null, 2);
+}
+const sidecarPath = (it, folder) => `${safe(folder)}/${safe(it.user)}_${it.code}.json`;
+// djb2 over the sidecar text: a changed hash rewrites every copy
+const hash = (s) => { let x = 5381; for (let i = 0; i < s.length; i++) x = (x * 33 ^ s.charCodeAt(i)) >>> 0; return x.toString(36); };
 
 // Instagram page elements hidden while the hide option is on (default). Class names are generated
 // and change between deploys: a selector that stops matching just stops hiding. One rule each,
