@@ -22,6 +22,8 @@
 // @grant        GM_setValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_registerMenuCommand
+// @downloadURL https://update.greasyfork.org/scripts/598296/mark.user.js
+// @updateURL https://update.greasyfork.org/scripts/598296/mark.meta.js
 // ==/UserScript==
 
 // Link rules per site; item is the list entry an effect applies to, a selector or a function of the link.

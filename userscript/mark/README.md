@@ -34,6 +34,6 @@ store lives in tampermonkey storage `mark.store` | export to keep a copy
 
 selftest node selftest.js
 
-github http://github.com/SolRaze/extentions/tree/main/userscript/mark
+github http://github.com/SolRaze/extentions/tree/main/userscript/mark | greasyfork https://greasyfork.org/en/scripts/598296-mark
 
 license mit
