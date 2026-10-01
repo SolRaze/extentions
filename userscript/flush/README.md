@@ -5,18 +5,20 @@ youtube player userscript | seek | miniplayer | gestures | cpu tamer | hidden pa
 features
 hide elements | uBlock youtube filters as css | 22 selectors in HIDE
 cpu tamer | timer callbacks on animation frames | applies on reload
-seek buttons | , and . keys | 1-60s step | fixed 10s
+seek buttons | , and . keys | 1-60s step
 miniplayer button | i key
-gestures | brightness left | volume right | 200%
+gestures | wheel on player edges | brightness left 30% | volume right 30% | 200%
 
 settings
-tampermonkey menu | on/off per feature | seek step | gesture sensitivity 1-20%
+sliders button in player controls | tampermonkey menu settings
+on/off per feature | seek step | gesture step 1-20% | applies live | cpu tamer on reload
 all on by default | kept in tampermonkey storage
 
 gotchas
 hide selectors are youtube's generated class names | a deploy renames them | stale ones just stop hiding
 cpu tamer patches the page window | needs `unsafeWindow` grant
 not in embedded players | @noframes
+no innerHTML | youtube enforces trusted types
 
 selftest node selftest.js
 
