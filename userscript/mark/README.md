@@ -1,7 +1,7 @@
 mark
 
 tag users, posts, videos, communities and links | colours | notes | per-tag hide, dim or star | tags page
-x | reddit | github | youtube | instagram | hacker news | soundcloud | pinterest | civitai | kemono
+x | reddit | github | youtube | instagram | hacker news | soundcloud | pinterest | civitai
 
 usage
 hover a link | 🏷 button beside it | or press t
@@ -26,12 +26,12 @@ default by name | star ★ | dim ignore clickbait promotion sb | hide block
 star | yellow edge on the list entry
 dim | entry at 35% until hover
 hide | entry gone | show hidden brings it back faint
-a post inherits effects from its user or community | reddit sub | github repo and owner | x user | soundcloud user | kemono creator
+a post inherits effects from its user or community | reddit sub | github repo and owner | x user | soundcloud user
 
 keys
 user, community and repo keys lowercase | post and video ids keep case
 youtube watch, shorts, youtu.be share one video key | twitter.com folds into x.com
-civitai.red into civitai.com | kemono.su and .party into kemono.cr | regional pinterest into pinterest.com
+civitai.red into civitai.com | regional pinterest into pinterest.com
 tracking params dropped | utm_* fbclid gclid si igsh ref_src
 tags from one site show on links to it from another | a github repo on hacker news
 
@@ -41,7 +41,7 @@ meta.colors tag to hue | meta.effects tag to effect | meta.note per entry
 entries kept while they carry a tag or a note | open tabs sync on save
 
 gotchas
-text links only | avatars and thumbnails skipped | pinterest, civitai, kemono also take image links
+text links only | avatars and thumbnails skipped | pinterest, civitai also take image links
 x users tagged from @handle links only
 item selectors are each site's markup | a redesign breaks effects there, chips keep working
 

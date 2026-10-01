@@ -20,8 +20,6 @@
 // @match        https://*.pinterest.com/*
 // @match        https://civitai.com/*
 // @match        https://civitai.red/*
-// @match        https://kemono.cr/*
-// @match        https://kemono.su/*
 // @noframes
 // @run-at       document-idle
 // @grant        GM_addStyle
@@ -84,12 +82,8 @@ const SITES = {
         ['post', /^civitai\.com\/(?:images|posts)\/\d+/],
         ['user', /^civitai\.com\/user\/([\w.-]+)(?=$|[/?])/, { key: m => `civitai.com/user/${m[1]}` }],
     ] },
-    'kemono.cr': { media: true, item: 'article, .user-card', links: [
-        ['post', /^kemono\.cr\/(\w+\/user\/[\w-]+)\/post\/[\w-]+/, { up: m => `kemono.cr/${m[1]}` }],
-        ['user', /^kemono\.cr\/\w+\/user\/[\w-]+(?=$|[?])/],
-    ] },
 };
-const ALIAS = { 'twitter.com': 'x.com', 'civitai.red': 'civitai.com', 'kemono.su': 'kemono.cr', 'kemono.party': 'kemono.cr' };
+const ALIAS = { 'twitter.com': 'x.com', 'civitai.red': 'civitai.com' };
 // Keys of these types are lowercased: the sites treat names case-insensitively. Post and video ids keep case.
 const NOCASE = new Set(['user', 'community', 'repo']);
 // Default effects by tag name. A tag's own effect setting on the tags page overrides these.

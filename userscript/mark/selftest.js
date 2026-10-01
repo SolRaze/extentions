@@ -49,7 +49,7 @@ assert.strictEqual(type('https://news.ycombinator.com/user?id=pg', 'pg'), 'user'
 assert.strictEqual(type('https://news.ycombinator.com/item?id=1', '3 comments'), 'post');
 assert.strictEqual(match('https://example.com/u/x', 'x'), null, 'unknown sites never match');
 
-// soundcloud, pinterest, civitai, kemono
+// soundcloud, pinterest, civitai
 assert.strictEqual(type('https://soundcloud.com/artist', 'artist'), 'user');
 assert.strictEqual(type('https://soundcloud.com/artist/song', 'song'), 'track');
 assert.strictEqual(match('https://soundcloud.com/artist/song', 's').up, 'https://soundcloud.com/artist');
@@ -61,8 +61,6 @@ assert.strictEqual(type('https://www.pinterest.com/someone/', 's'), 'user');
 assert.strictEqual(key('https://civitai.red/models/42/name', 'm'), 'https://civitai.com/models/42');
 assert.strictEqual(type('https://civitai.com/images/9', 'i'), 'post');
 assert.strictEqual(key('https://civitai.com/user/Bob/models', 'b'), 'https://civitai.com/user/bob');
-assert.strictEqual(match('https://kemono.su/patreon/user/77/post/5', 'p').up, 'https://kemono.cr/patreon/user/77');
-assert.strictEqual(type('https://kemono.cr/patreon/user/77', 'c'), 'user');
 
 // any link: off-site links tag as 'link', same-site links without a rule are navigation
 assert.deepStrictEqual(linkMatch('https://blog.dev/post?utm_source=x', 'b', 'x.com'), { key: 'https://blog.dev/post', type: 'link' });
