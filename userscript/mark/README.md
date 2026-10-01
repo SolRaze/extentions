@@ -1,36 +1,49 @@
 mark
 
-tag users, posts and videos | hide, dim or star what you tagged | searchable library
-x | reddit | github | youtube | instagram | hacker news
+tag users, posts, videos, communities and links | colours | notes | per-tag hide, dim or star | tags page
+x | reddit | github | youtube | instagram | hacker news | soundcloud | pinterest | civitai | kemono
 
 usage
-hover a user, post or video link | 🏷 button beside it | or press t
-editor saves on every change | enter adds | tab completes | ⌫ removes last | esc closes
-suggestions | most used tags | substring match while typing
+hover a link | 🏷 button beside it | or press t
+editor | applied tags on top | every known tag as a pill, sized by use | click toggles
+typing filters the pills | enter adds typed tag, existing casing reused | tab picks first pill | ⌫ removes last | esc closes
+note field per entry | shown as ✎ chip and chip tooltip
 chips after every tagged link | click opens the editor
-tag this page | tampermonkey menu | any url
+off-site links tag as plain links | same-site links without a rule never
+
+tags page
+alt+shift+t | or tampermonkey menu `mark` | full-tab overlay
+tag cloud sized by use | click tags to filter | several tags = entries carrying all
+one tag picked | rename | renaming onto an existing tag merges | colour slider | effect | delete tag
+compact rows | type icon, title, chips | url and note on hover | edit | delete
+bulk | row checkboxes | shift-click extends | select all shown | add tag | remove tag | delete
+undo | one step back for rename, delete and bulk
+tag this page | show hidden | export | import
 
 effects
-star | ★ | yellow edge on the list entry
-dim | ignore | clickbait | promotion | sb | entry at 35% until hover
-hide | block | entry gone | show hidden in menu or library brings it back faint
-
-library
-alt+shift+t | or tampermonkey menu
-search title, url, tag | #tag filters | tag cloud click filters
-edit | delete with undo | export | import
-export and import in the utags shape | a utags export imports here
+set per tag on the tags page | label | star | dim | hide
+default by name | star ★ | dim ignore clickbait promotion sb | hide block
+star | yellow edge on the list entry
+dim | entry at 35% until hover
+hide | entry gone | show hidden brings it back faint
+a post inherits effects from its user or community | reddit sub | github repo and owner | x user | soundcloud user | kemono creator
 
 keys
-user keys lowercase | post and video ids keep case
+user, community and repo keys lowercase | post and video ids keep case
 youtube watch, shorts, youtu.be share one video key | twitter.com folds into x.com
+civitai.red into civitai.com | kemono.su and .party into kemono.cr | regional pinterest into pinterest.com
+tracking params dropped | utm_* fbclid gclid si igsh ref_src
 tags from one site show on links to it from another | a github repo on hacker news
 
+store
+tampermonkey storage `mark.store` | utags shape | a utags export imports here
+meta.colors tag to hue | meta.effects tag to effect | meta.note per entry
+entries kept while they carry a tag or a note | open tabs sync on save
+
 gotchas
-only text links tagged | avatars and thumbnails skipped
+text links only | avatars and thumbnails skipped | pinterest, civitai, kemono also take image links
 x users tagged from @handle links only
-item selectors are each site's markup | a redesign breaks hide/dim/star there, chips keep working
-store lives in tampermonkey storage `mark.store` | export to keep a copy
+item selectors are each site's markup | a redesign breaks effects there, chips keep working
 
 selftest node selftest.js
 
