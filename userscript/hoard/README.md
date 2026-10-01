@@ -6,13 +6,16 @@ usage
 hoard pill bottom-left | or tampermonkey menu open hoard | sync to disk | esc or ✕ closes
 refresh pulls saved feed with tab session | cached until next refresh
 collection membership comes from each saved post | names from the collection list, else the saved page
-first refresh from instagram.com/<you>/saved/ | names kept after that
+refresh from instagram.com/<you>/saved/ | scrolls the collection grid to the end | names kept after that
+unknown name = folder `collection <id>` | renamed in the archive once the name is known | no redownload
+renamed folders moved on disk by tidy.py in the hoard repo | index.html lists the pending renames
 tab title reads saved on every instagram page
 hide elements on by default | 20 selectors in HIDE | tampermonkey menu hide elements on/off | choice kept
 in-tab library covers the rest of instagram | filter collection | type | user or caption | sort saved | newest | oldest | user
 
 sync
 sync to disk = download only posts not yet on disk from the loaded library | refresh first for new saves | rewrite index.html
+index.html and sidecars written from a blob | a data: url over 2 MB never downloads
 copy per collection folder | post in 2 collections sits in both | no collection goes to unsorted
 full res | every carousel item | only missing folders downloaded | post added to a collection gets one new copy
 unsaved posts and old folders stay | nothing deleted

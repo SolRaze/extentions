@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.6
+// @version      1.7
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -161,10 +161,36 @@ const dirsHave = (p) => p ? p.dirs || [p.media[0]?.p.split('/')[0]] : [];
 const relPath = (it, i, url, folder) =>
     `${safe(folder)}/${safe(it.user)}_${it.code}${it.files.length > 1 ? `_${i + 1}` : ''}.${extOf(url)}`;
 
+// Folder each collection id was written under. A collection whose name changed, or whose name was
+// learned after its posts landed in "collection <id>", is renamed in the archive here; the move on
+// disk is tidy.py's job, reading the pending pairs from index.html. Returns this run's pairs.
+function renameFolders(arc, cols) {
+    const folders = arc.folders || (arc.folders = {});
+    const used = new Set(Object.values(arc.posts).flatMap(dirsHave));
+    const mv = new Map();
+    for (const c of cols) {
+        const now = safe(c.name), fallback = safe('collection ' + c.id);
+        const was = folders[c.id] || (used.has(fallback) ? fallback : now);
+        if (was !== now) mv.set(was, now);
+        folders[c.id] = now;
+    }
+    if (!mv.size) return [];
+    for (const p of Object.values(arc.posts)) {
+        if (p.dirs) p.dirs = [...new Set(p.dirs.map(d => mv.get(d) || d))];
+        for (const m of p.media) {
+            const i = m.p.indexOf('/'), d = m.p.slice(0, i);
+            if (mv.has(d)) m.p = mv.get(d) + m.p.slice(i);
+        }
+    }
+    const pairs = [...mv];
+    arc.renames = [...(arc.renames || []), ...pairs];
+    return pairs;
+}
+
 // '<' is escaped so a caption holding "</script>" cannot close the inline data block.
 function buildIndex(arc, at) {
     const data = {
-        at, cols: arc.cols || [], profiles: arc.profiles || {},
+        at, cols: arc.cols || [], profiles: arc.profiles || {}, renames: arc.renames || [],
         posts: Object.values(arc.posts || {}).sort((a, b) => a.order - b.order),
     };
     return VIEWER.replace('__DATA__', () => JSON.stringify(data).replace(/</g, '\\u003c'));
@@ -358,7 +384,7 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 </body></html>
 `;
 
-if (typeof module !== 'undefined') module.exports = { extOf, normalize, record, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
+if (typeof module !== 'undefined') module.exports = { extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
 else main();
 
 function main() {
@@ -474,7 +500,18 @@ function main() {
         return names;
     }
 
+    // The saved page lazy-loads its collection grid: scroll to the end so every name is in the DOM.
+    async function scrollSaved() {
+        if (!/^\/[^/]+\/saved\/?$/.test(location.pathname)) return;
+        for (let n = -1, k; n !== (k = document.querySelectorAll('a[href*="/saved/"]').length); n = k) {
+            status(`reading collection names ${k}`);
+            window.scrollTo(0, document.documentElement.scrollHeight);
+            await sleep(PAGE_DELAY);
+        }
+    }
+
     async function load() {
+        await scrollSaved();
         const names = learnNames();
         try {
             await pages('collections/list/?collection_types=' + encodeURIComponent('["MEDIA"]'),
@@ -543,6 +580,9 @@ function main() {
     // .media fills the backdrop, so a click on its empty space closes too
     viewer.addEventListener('click', e => { if (e.target === viewer || e.target.className === 'media') viewer.hidden = true; });
 
+    // A Blob, not a data: URL: Chromium drops URLs over 2 MB, which the inlined index.html passes.
+    const save = (text, type, name) => gmDownload(new Blob([text], { type }), name);
+
     // GM_download never calls back when the download is blocked outright (extension not whitelisted,
     // download mode not browser api), so a hard timeout turns that into a visible failure.
     const gmDownload = (url, name) => new Promise((ok, fail) => {
@@ -565,6 +605,7 @@ function main() {
             const p = arc.posts[it.code];
             if (p) { p.cols = it.cols; p.order = it.order; }
         }
+        const renamed = renameFolders(arc, lib.cols);
         // A post is due when a folder lacks its media or its sidecar is stale; a stale sidecar alone
         // (posts synced before sidecars, or a refresh that brought new fields) rewrites JSON only.
         const entry = (it, want, have) => {
@@ -601,7 +642,7 @@ function main() {
                 // the viewer loads each post from its first folder, which now exists on disk
                 const p = entry(it, want, have), json = side(p);
                 for (const dir of p.dirs) {
-                    await gmDownload('data:application/json;charset=utf-8,' + encodeURIComponent(json), 'reference/' + sidecarPath(it, dir));
+                    await save(json, 'application/json', 'reference/' + sidecarPath(it, dir));
                 }
                 p.side = hash(json);
                 arc.posts[it.code] = p;
@@ -617,9 +658,9 @@ function main() {
         arc.cols = lib.cols;
         GM_setValue(ARC_KEY, arc);
         const html = buildIndex(arc, Date.now());
-        await gmDownload('data:text/html;charset=utf-8,' + encodeURIComponent(html), 'reference/index.html');
+        await save(html, 'text/html', 'reference/index.html');
         render();
-        status(`synced ${todo.length - failed} (${fetched} with media) · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}`);
+        status(`synced ${todo.length - failed} (${fetched} with media) · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}${renamed.length ? ` · ${renamed.length} folders renamed, run tidy.py` : ''}`);
     }
 
     function open() {
