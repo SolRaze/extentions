@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# greasyfork — post a new version of a userscript to Greasy Fork.
+# greasyfork — post a userscript to Greasy Fork.
 #   ./greasyfork userscript/<name> "<changelog>"
 # Uploads <dir>/<name>.user.js as the code and <dir>/README.md as additional info. The script id
-# comes from the file's @updateURL (update.greasyfork.org/scripts/<id>/...), so the script must
-# already exist on Greasy Fork.
+# comes from the file's @updateURL (update.greasyfork.org/scripts/<id>/...). Without one the
+# script is created as new, and @downloadURL/@updateURL for the new id are written into the file;
+# the changelog is unused then.
 #
 # Credentials come from a KeePass entry holding the account email, password and TOTP; nothing is
 # printed or kept. GF_VAULT, GF_KEY, GF_ENTRY override the defaults below.
@@ -13,7 +14,6 @@ dir=${1:?usage: greasyfork userscript/<name> "<changelog>"}
 log=${2:?changelog missing}
 js=$(ls "$dir"/*.user.js)
 id=$(sed -nE 's|.*update\.greasyfork\.org/scripts/([0-9]+)/.*|\1|p' "$js" | head -1)
-[ -n "$id" ] || { echo "greasyfork: no greasyfork @updateURL in $js" >&2; exit 1; }
 
 vault=${GF_VAULT:-$HOME/Documents/Vault/ojks.kdbx}
 key=${GF_KEY:-$(dirname "$vault")/Keyfile/pwd.keyx}
@@ -36,18 +36,34 @@ login() {
 login "$tmp/a.html" -o "$tmp/b.html"
 login "$tmp/b.html" --data-urlencode "user[otp_attempt]=$(kp --totp | grep -E '^[0-9]{6}$')" -o /dev/null
 
-u=$site/scripts/$id/versions
-C "$u/new" -o "$tmp/c.html"
-# the form posts to the slugged path; the id-only one answers 422
-act=https://greasyfork.org$(grep -oE 'id="new_script_version"[^>]*action="[^"]+"' "$tmp/c.html" | sed 's/.*action="//;s/"$//')
 # markdown needs two trailing spaces for the readme's line breaks
 sed 's/$/  /' "$dir/README.md" > "$tmp/info.md"
-C -e "$u/new" "$act" -F "authenticity_token=$(tok "$tmp/c.html")" -F "script[script_type]=1" -F "name=" -F "description=" \
-    -F "script_version[code]=<$js" \
-    -F "script_version[additional_info][0][attribute_default]=true" -F "script_version[additional_info][0][value_markup]=markdown" \
-    -F "script_version[additional_info][0][attribute_value]=<$tmp/info.md" \
-    -F "script_version[changelog]=$log" -F "script_version[changelog_markup]=markdown" -F "script_version[attachments][]=" \
-    -F "script[adult_content_self_report]=0" -F "commit=Post new version" -o /dev/null -w 'post %{http_code}\n'
+info=(-F "script_version[additional_info][0][attribute_default]=true" -F "script_version[additional_info][0][value_markup]=markdown"
+    -F "script_version[additional_info][0][attribute_value]=<$tmp/info.md" -F "script_version[attachments][]="
+    -F "script[adult_content_self_report]=0" -F "script[script_type]=1" -F "script_version[code]=<$js")
+
+if [ -z "$id" ]; then
+    C "$site/script_versions/new" -o "$tmp/c.html"
+    act=https://greasyfork.org$(grep -oE 'id="new_script_version"[^>]*action="[^"]+"' "$tmp/c.html" | sed 's/.*action="//;s/"$//')
+    loc=$(C -e "$site/script_versions/new" "$act" -F "authenticity_token=$(tok "$tmp/c.html")" "${info[@]}" \
+        -F "script[locale_id]=" -F "commit=Post script" -o /dev/null -w '%{redirect_url}')
+    # the new script's page is /<locale>/scripts/<id>-<slug>
+    id=$(sed -nE 's|.*/scripts/([0-9]+).*|\1|p' <<< "$loc")
+    [ -n "$id" ] || { echo "greasyfork: create failed, no script page in '$loc'" >&2; exit 1; }
+    name=$(basename "$js")
+    sed -i '' "s|^// ==/UserScript==|// @downloadURL https://update.greasyfork.org/scripts/$id/$name\\
+// @updateURL https://update.greasyfork.org/scripts/$id/${name%.user.js}.meta.js\\
+// ==/UserScript==|" "$js"
+    echo "created $site/scripts/$id"
+else
+    u=$site/scripts/$id/versions
+    C "$u/new" -o "$tmp/c.html"
+    # the form posts to the slugged path; the id-only one answers 422
+    act=https://greasyfork.org$(grep -oE 'id="new_script_version"[^>]*action="[^"]+"' "$tmp/c.html" | sed 's/.*action="//;s/"$//')
+    C -e "$u/new" "$act" -F "authenticity_token=$(tok "$tmp/c.html")" -F "name=" -F "description=" "${info[@]}" \
+        -F "script_version[changelog]=$log" -F "script_version[changelog_markup]=markdown" \
+        -F "commit=Post new version" -o /dev/null -w 'post %{http_code}\n'
+fi
 
 ver() { sed -nE 's|^// @version +([^ ]+).*|\1|p' | head -1; }
 want=$(ver < "$js")
