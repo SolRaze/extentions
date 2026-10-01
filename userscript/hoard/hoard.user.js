@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.7
+// @version      1.8
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -618,7 +618,11 @@ function main() {
             const media = want.some(d => !have.includes(d));
             return media || (it.files.length && arc.posts[it.code].side !== hash(side(entry(it, want, have))));
         };
-        const todo = lib.items.filter(due);
+        // A post in a collection whose name is unknown waits: its folder name is final once written,
+        // and a userscript cannot move files afterwards.
+        const names = GM_getValue(NAMES_KEY, {});
+        const waiting = lib.items.filter(it => it.cols.some(id => !names[id])).length;
+        const todo = lib.items.filter(it => it.cols.every(id => names[id]) && due(it));
         let n = 0, failed = 0, fetched = 0;
         status(`sync 0/${todo.length}`);
         for (const it of todo) {
@@ -660,7 +664,7 @@ function main() {
         const html = buildIndex(arc, Date.now());
         await save(html, 'text/html', 'reference/index.html');
         render();
-        status(`synced ${todo.length - failed} (${fetched} with media) · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}${renamed.length ? ` · ${renamed.length} folders renamed, run tidy.py` : ''}`);
+        status(`synced ${todo.length - failed} (${fetched} with media) · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}${renamed.length ? ` · ${renamed.length} folders renamed, run tidy.py` : ''}${waiting ? ` · ${waiting} wait for collection names, refresh from /saved/` : ''}`);
     }
 
     function open() {
