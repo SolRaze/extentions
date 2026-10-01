@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.2
+// @version      1.3
 // @description  seek buttons and keys, miniplayer button, scroll gestures, sponsorblock skipping, cpu tamer and a decluttered youtube
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -67,7 +67,7 @@ const seekKeyDelta = ({ key, ctrlKey, metaKey, altKey, shiftKey, target }, step,
 
 // Settings, all in tampermonkey storage. Toggles default on.
 const DEFAULTS = { hide: true, cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
-    'sb.sponsor': true, 'sb.selfpromo': true, 'sb.interaction': true, 'sb.intro': false, 'sb.outro': false, 'sb.preview': false, 'sb.filler': false, 'sb.music_offtopic': false };
+    'sb.sponsor': true, 'sb.selfpromo': true, 'sb.interaction': true, 'sb.intro': false, 'sb.outro': false, 'sb.preview': false, 'sb.filler': false, 'sb.music_offtopic': false, 'sb-markers': false };
 const cfg = (k) => GM_getValue('flush.' + k, DEFAULTS[k]);
 const setCfg = (k, v) => GM_setValue('flush.' + k, v);
 
@@ -174,14 +174,15 @@ function h(tag, attrs = {}, ...kids) {
     el.append(...kids);
     return el;
 }
-const icon = (...kids) => h('svg', { width: '100%', height: '100%', viewBox: '0 0 36 36' }, ...kids);
+// Glyphs are drawn on a 36 grid with a 6-unit margin; the viewBox crops to the 24px box the player's own icons use.
+const icon = (...kids) => h('svg', { width: '24', height: '24', viewBox: '6 6 24 24' }, ...kids);
 const ICONS = {
     mini: () => icon(h('path', { fill: '#fff', d: 'M25,17 L17,17 L17,23 L25,23 Z M29,25 L29,10.98 C29,9.88 28.1,9 27,9 L9,9 C7.9,9 7,9.88 7,10.98 L7,25 C7,26.1 7.9,27 9,27 L27,27 C28.1,27 29,26.1 29,25 Z M27,25.02 L9,25.02 L9,10.97 L27,10.97 Z' })),
     seek: (s, fwd) => icon(
         h('g', fwd ? { transform: 'translate(36,0) scale(-1,1)' } : {},
             h('path', { d: 'M18 6.3l5.6 4.2L18 14.7z', fill: '#fff' }),
             h('path', { d: 'M18 8.6a9.4 9.4 0 1 1-9.4 9.4', fill: 'none', stroke: '#fff', 'stroke-width': '2.2', 'stroke-linecap': 'round' })),
-        h('text', { x: '18', y: '20', 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': '11', 'font-weight': 'bold', fill: '#fff', 'font-family': 'Arial' }, String(s))),
+        h('text', { x: '18', y: '20', 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': '9', 'font-weight': 'bold', fill: '#fff', 'font-family': 'Arial' }, String(s))),
 };
 
 function createBtn({ cls, title, svg, onClick, priority }) {
@@ -315,10 +316,31 @@ function showOverlay(txt, p = QS('#movie_player')) {
 }
 
 // SponsorBlock: skip-type segments for the current video, skipped silently. No seek bar
-// markers or player buttons. The lookup sends only the first 4 hex chars of sha256(videoId).
+// buttons; seek bar markers only with the sb-markers setting. The lookup sends only the first 4 hex chars of sha256(videoId).
 const SB_API = 'https://sponsor.ajay.app/api/skipSegments/';
 let sb = { id: '', segments: [], done: new Set() };
 const videoId = () => new URLSearchParams(location.search).get('v') || location.pathname.match(/^\/shorts\/([\w-]{11})/)?.[1] || '';
+
+const SB_COLORS = { sponsor: '#00d400', selfpromo: '#ffff00', interaction: '#cc00ff', intro: '#00ffff', outro: '#0202ed', preview: '#008fd6', filler: '#7300ff', music_offtopic: '#ff9900' };
+
+// Enabled categories drawn over the progress bar. Runs on every DOM pass, so it rebuilds only when the key changes.
+function renderMarkers() {
+    const bar = QS('#movie_player .ytp-progress-bar');
+    const v = QS('#movie_player video');
+    let box = QS('.flush-sb-markers');
+    const segs = cfg('sb-markers') && bar && v?.duration > 0 && sb.id === videoId() ? sb.segments.filter(s => cfg('sb.' + s.category)) : [];
+    const key = segs.length ? `${sb.id}|${v.duration}|${segs.map(s => s.UUID).join()}` : '';
+    if ((box?.dataset.key || '') === key && (!box || box.parentNode === bar)) return;
+    box?.remove();
+    if (!key) return;
+    box = h('div', { className: 'flush-sb-markers' }, ...segs.map(s => {
+        const d = h('div');
+        d.style.cssText = `left: ${s.segment[0] / v.duration * 100}%; width: ${(s.segment[1] - s.segment[0]) / v.duration * 100}%; background: ${SB_COLORS[s.category]};`;
+        return d;
+    }));
+    box.dataset.key = key;
+    bar.append(box);
+}
 
 // Segment to skip at time t: enabled category, not skipped yet, not within its last 0.5s.
 function segmentAt(segments, t, enabled, done) {
@@ -338,6 +360,7 @@ async function loadSegments() {
         onload: (r) => {
             if (r.status !== 200 || sb.id !== id) return; // 404 = no segments for this prefix
             try { sb.segments = JSON.parse(r.responseText).find(x => x.videoID === id)?.segments || []; } catch { /* bad reply */ }
+            renderMarkers();
         },
     });
 }
@@ -377,8 +400,9 @@ function buildPanel() {
         ...TOGGLES.map(([k, label]) => h('label', {},
             h('input', { type: 'checkbox', checked: !!cfg(k), onchange: (e) => { setCfg(k, e.target.checked); applyFeatures(); } }), label)),
         h('b', {}, 'sponsorblock skip'),
+        h('label', {}, h('input', { type: 'checkbox', checked: !!cfg('sb-markers'), onchange: (e) => { setCfg('sb-markers', e.target.checked); renderMarkers(); } }), 'seek bar markers'),
         ...SB_CATEGORIES.map(([c, label]) => h('label', {},
-            h('input', { type: 'checkbox', checked: !!cfg('sb.' + c), onchange: (e) => setCfg('sb.' + c, e.target.checked) }), label)),
+            h('input', { type: 'checkbox', checked: !!cfg('sb.' + c), onchange: (e) => { setCfg('sb.' + c, e.target.checked); renderMarkers(); } }), label)),
         h('b', {}, 'steps'),
         ...RANGES.map(([k, label, min, max, unit]) => {
             const out = h('span', {}, cfg(k) + unit);
@@ -400,6 +424,7 @@ function applyFeatures() {
     if (hideStyle) hideStyle.disabled = !cfg('hide');
     cfg('miniplayer') ? ensureMini() : QS('.custom-yt-mini-button')?.remove();
     cfg('seek') ? ensureSeek() : removeSeek();
+    renderMarkers();
 }
 
 function main() {
@@ -407,8 +432,9 @@ function main() {
 
     hideStyle = GM_addStyle(HIDE.map(sel => `${sel} { display: none !important; }`).join('\n'));
     hideStyle.disabled = !cfg('hide');
-    // 36-unit icons with their own margin; 36px keeps them level with the player's 24px glyphs
-    GM_addStyle(`.custom-yt-btn svg { width: 36px !important; height: 36px !important; display: block; margin: auto; pointer-events: none; }`);
+    GM_addStyle(`.custom-yt-btn svg { pointer-events: none; }
+.flush-sb-markers { position: absolute; inset: 0; pointer-events: none; z-index: 40; }
+.flush-sb-markers > div { position: absolute; top: 0; height: 100%; opacity: 0.8; }`);
 
     GM_registerMenuCommand('settings', () => togglePanel());
 
