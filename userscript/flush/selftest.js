@@ -13,7 +13,7 @@ global.document = {
     createElement: () => ({ getContext: () => ({}) })
 };
 
-const { clampSeek, seekKeyDelta, tame } = require('./flush.user.js');
+const { clampSeek, seekKeyDelta, tame, segmentAt } = require('./flush.user.js');
 
 // clampSeek: never leaves the [0, duration] range
 assert.strictEqual(clampSeek(30, 10, 100), 40);
@@ -83,3 +83,13 @@ const settle = async () => { await wait(10); await Promise.resolve(); await Prom
     console.log('cpu tamer: ok');
     process.exit(0);
 })();
+
+// segmentAt: enabled categories only, once per segment, never in the last 0.5s
+const segs = [{ UUID: 'a', category: 'sponsor', segment: [10, 20] }, { UUID: 'b', category: 'intro', segment: [0, 5] }];
+const on = (c) => c === 'sponsor';
+assert.strictEqual(segmentAt(segs, 12, on, new Set())?.UUID, 'a');
+assert.strictEqual(segmentAt(segs, 2, on, new Set()), undefined, 'disabled category');
+assert.strictEqual(segmentAt(segs, 12, on, new Set(['a'])), undefined, 'already skipped');
+assert.strictEqual(segmentAt(segs, 19.7, on, new Set()), undefined, 'too close to the end');
+assert.strictEqual(segmentAt(segs, 20, on, new Set()), undefined);
+console.log('sponsorblock: ok');

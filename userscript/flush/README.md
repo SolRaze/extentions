@@ -1,6 +1,6 @@
 flush
 
-youtube player userscript | seek | miniplayer | gestures | cpu tamer | hidden page clutter
+youtube player userscript | seek | miniplayer | gestures | sponsorblock | cpu tamer | hidden page clutter
 
 features
 hide elements | uBlock youtube filters as css | 22 selectors in HIDE
@@ -8,17 +8,19 @@ cpu tamer | timer callbacks on animation frames | applies on reload
 seek buttons | , and . keys | 1-60s step
 miniplayer button | i key
 gestures | wheel on player edges | brightness left 30% | volume right 30% | 200%
+sponsorblock | auto skip per category | no player icons or seek bar markers | once per segment
 
 settings
-sliders button in player controls | tampermonkey menu settings
-on/off per feature | seek step | gesture step 1-20% | applies live | cpu tamer on reload
-all on by default | kept in tampermonkey storage
+tampermonkey menu settings | panel top right | esc or click outside closes
+on/off per feature | sponsorblock categories | seek step | gesture step 1-20% | applies live | cpu tamer on reload
+all on by default | sponsorblock: sponsor, self promotion, subscribe reminder | kept in tampermonkey storage
 
 gotchas
 hide selectors are youtube's generated class names | a deploy renames them | stale ones just stop hiding
 cpu tamer patches the page window | needs `unsafeWindow` grant
 not in embedded players | @noframes
 no innerHTML | youtube enforces trusted types
+sponsorblock lookup sends 4 hex chars of sha256(video id) | sponsor.ajay.app | `@connect` grant
 
 selftest node selftest.js
 

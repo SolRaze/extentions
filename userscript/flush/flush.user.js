@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.1
-// @description  seek buttons and keys, miniplayer button, scroll gestures, cpu tamer and a decluttered youtube
+// @version      1.2
+// @description  seek buttons and keys, miniplayer button, scroll gestures, sponsorblock skipping, cpu tamer and a decluttered youtube
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -14,7 +14,9 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
+// @connect      sponsor.ajay.app
 // @downloadURL https://update.greasyfork.org/scripts/598191/flush.user.js
 // @updateURL https://update.greasyfork.org/scripts/598191/flush.meta.js
 // ==/UserScript==
@@ -64,7 +66,8 @@ const seekKeyDelta = ({ key, ctrlKey, metaKey, altKey, shiftKey, target }, step,
 };
 
 // Settings, all in tampermonkey storage. Toggles default on.
-const DEFAULTS = { hide: true, cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5 };
+const DEFAULTS = { hide: true, cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
+    'sb.sponsor': true, 'sb.selfpromo': true, 'sb.interaction': true, 'sb.intro': false, 'sb.outro': false, 'sb.preview': false, 'sb.filler': false, 'sb.music_offtopic': false };
 const cfg = (k) => GM_getValue('flush.' + k, DEFAULTS[k]);
 const setCfg = (k, v) => GM_setValue('flush.' + k, v);
 
@@ -159,7 +162,7 @@ const QS = (s) => document.querySelector(s);
 const BTN_CLASS = 'ytp-button custom-yt-btn';
 
 // DOM builder. YouTube enforces Trusted Types, so no innerHTML anywhere.
-const SVG_TAGS = /^(svg|g|path|circle|text)$/;
+const SVG_TAGS = /^(svg|g|path|text)$/;
 function h(tag, attrs = {}, ...kids) {
     const svg = SVG_TAGS.test(tag);
     const el = svg ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
@@ -179,11 +182,6 @@ const ICONS = {
             h('path', { d: 'M18 6.3l5.6 4.2L18 14.7z', fill: '#fff' }),
             h('path', { d: 'M18 8.6a9.4 9.4 0 1 1-9.4 9.4', fill: 'none', stroke: '#fff', 'stroke-width': '2.2', 'stroke-linecap': 'round' })),
         h('text', { x: '18', y: '20', 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': '11', 'font-weight': 'bold', fill: '#fff', 'font-family': 'Arial' }, String(s))),
-    sliders: () => icon(
-        h('path', { d: 'M10 13h16M10 18h16M10 23h16', stroke: '#fff', 'stroke-width': '2', 'stroke-linecap': 'round' }),
-        h('circle', { cx: '14', cy: '13', r: '2.5', fill: '#fff' }),
-        h('circle', { cx: '22', cy: '18', r: '2.5', fill: '#fff' }),
-        h('circle', { cx: '16', cy: '23', r: '2.5', fill: '#fff' })),
 };
 
 function createBtn({ cls, title, svg, onClick, priority }) {
@@ -208,11 +206,6 @@ function ensureMini() {
     if (QS('.custom-yt-mini-button') || QS('.ytp-miniplayer-button')) return;
     const btn = createBtn({ cls: 'custom-yt-mini-button', title: 'Miniplayer (i)', svg: ICONS.mini(), onClick: () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'i', keyCode: 73, bubbles: true })), priority: '7' });
     insertBtn(btn, '.ytp-settings-button', 'after');
-}
-
-function ensureFlushBtn() {
-    if (QS('.custom-yt-flush') || !QS('.ytp-right-controls')) return;
-    insertBtn(createBtn({ cls: 'custom-yt-flush', title: 'flush settings', svg: ICONS.sliders(), onClick: (e) => togglePanel(e.currentTarget), priority: '6' }), '.ytp-settings-button');
 }
 
 const seekStep = () => Math.min(60, Math.max(1, parseInt(cfg('seek-step'), 10) || 10));
@@ -321,12 +314,52 @@ function showOverlay(txt, p = QS('#movie_player')) {
     clearTimeout(ovTimeout); ovTimeout = setTimeout(() => ov.style.display = 'none', 800);
 }
 
+// SponsorBlock: skip-type segments for the current video, skipped silently. No seek bar
+// markers or player buttons. The lookup sends only the first 4 hex chars of sha256(videoId).
+const SB_API = 'https://sponsor.ajay.app/api/skipSegments/';
+let sb = { id: '', segments: [], done: new Set() };
+const videoId = () => new URLSearchParams(location.search).get('v') || location.pathname.match(/^\/shorts\/([\w-]{11})/)?.[1] || '';
+
+// Segment to skip at time t: enabled category, not skipped yet, not within its last 0.5s.
+function segmentAt(segments, t, enabled, done) {
+    return segments.find(s => enabled(s.category) && !done.has(s.UUID) && t >= s.segment[0] && t < s.segment[1] - 0.5);
+}
+
+async function loadSegments() {
+    const id = videoId();
+    if (id === sb.id) return;
+    sb = { id, segments: [], done: new Set() };
+    if (!id) return;
+    const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id)))]
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+    const cats = encodeURIComponent(JSON.stringify(SB_CATEGORIES.map(([c]) => c)));
+    GM_xmlhttpRequest({
+        url: `${SB_API}${hash.slice(0, 4)}?categories=${cats}&actionTypes=${encodeURIComponent('["skip"]')}`,
+        onload: (r) => {
+            if (r.status !== 200 || sb.id !== id) return; // 404 = no segments for this prefix
+            try { sb.segments = JSON.parse(r.responseText).find(x => x.videoID === id)?.segments || []; } catch { /* bad reply */ }
+        },
+    });
+}
+
+function handleTime(e) {
+    const v = e.target;
+    if (!(v instanceof HTMLVideoElement) || !sb.segments.length || sb.id !== videoId()) return;
+    const s = segmentAt(sb.segments, v.currentTime, (c) => cfg('sb.' + c), sb.done);
+    if (!s) return;
+    sb.done.add(s.UUID); // once per segment, so seeking back into it plays it
+    v.currentTime = s.segment[1];
+    showOverlay(`skipped ${s.category.replace('_', ' ')}`);
+}
+
 // Settings panel. Every change saves and applies at once, except the cpu tamer.
 const TOGGLES = [['hide', 'hide clutter'], ['seek', 'seek buttons and , . keys'], ['miniplayer', 'miniplayer button'], ['gesture', 'wheel gestures'], ['cputamer', 'cpu tamer (reload)']];
+const SB_CATEGORIES = [['sponsor', 'sponsor'], ['selfpromo', 'self promotion'], ['interaction', 'subscribe reminder'], ['intro', 'intro'], ['outro', 'outro'], ['preview', 'preview | recap'], ['filler', 'filler'], ['music_offtopic', 'non-music in music']];
 const RANGES = [['seek-step', 'seek step', 1, 60, 's'], ['gesture-sensitivity', 'gesture step', 1, 20, '%']];
 const PANEL_CSS = `
 .p { font: 13px/1.4 system-ui, sans-serif; color: #eee; background: #1c1c20; border: 1px solid #333; border-radius: 10px; padding: 10px 12px; width: 220px; box-shadow: 0 8px 24px #0009; display: grid; gap: 6px; }
 b { font-size: 14px; }
+b ~ b { font-size: 12px; color: #999; margin-top: 4px; }
 label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .r { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
 .r input { grid-column: 1 / -1; width: 100%; }
@@ -343,6 +376,10 @@ function buildPanel() {
         h('b', {}, 'flush'),
         ...TOGGLES.map(([k, label]) => h('label', {},
             h('input', { type: 'checkbox', checked: !!cfg(k), onchange: (e) => { setCfg(k, e.target.checked); applyFeatures(); } }), label)),
+        h('b', {}, 'sponsorblock skip'),
+        ...SB_CATEGORIES.map(([c, label]) => h('label', {},
+            h('input', { type: 'checkbox', checked: !!cfg('sb.' + c), onchange: (e) => setCfg('sb.' + c, e.target.checked) }), label)),
+        h('b', {}, 'steps'),
         ...RANGES.map(([k, label, min, max, unit]) => {
             const out = h('span', {}, cfg(k) + unit);
             return h('label', { className: 'r' }, label, out,
@@ -351,20 +388,16 @@ function buildPanel() {
     return host;
 }
 function closePanel() { panel?.remove(); panel = null; }
-function togglePanel(anchor) {
+function togglePanel() {
     if (panel) return closePanel();
     panel = buildPanel();
+    Object.assign(panel.style, { right: '20px', top: '70px' });
     (document.fullscreenElement || document.body).append(panel);
-    const r = anchor?.getBoundingClientRect();
-    Object.assign(panel.style, r
-        ? { right: `${Math.max(8, innerWidth - r.right)}px`, bottom: `${innerHeight - r.top + 8}px` }
-        : { right: '20px', top: '70px' });
 }
 
 let hideStyle;
 function applyFeatures() {
     if (hideStyle) hideStyle.disabled = !cfg('hide');
-    ensureFlushBtn();
     cfg('miniplayer') ? ensureMini() : QS('.custom-yt-mini-button')?.remove();
     cfg('seek') ? ensureSeek() : removeSeek();
 }
@@ -382,10 +415,11 @@ function main() {
     document.addEventListener('keydown', handleSeekKey, true);
     document.addEventListener('wheel', handleWheel, { capture: true, passive: false });
     document.addEventListener('mousedown', (e) => {
-        const path = e.composedPath();
-        if (panel && !path.includes(panel) && !path.some(n => n.classList?.contains('custom-yt-flush'))) closePanel();
+        if (panel && !e.composedPath().includes(panel)) closePanel();
     }, true);
+    document.addEventListener('timeupdate', handleTime, true); // media events don't bubble, capture sees them
     window.addEventListener('yt-navigate-finish', () => {
+        loadSegments();
         const v = QS('video');
         if (v) v.style.filter = ''; // brightness lives on the element and would leak into the next video
         applyFeatures();
@@ -398,9 +432,9 @@ function main() {
         if (applyTimer) return;
         applyTimer = setTimeout(() => { applyTimer = 0; applyFeatures(); }, 250);
     };
-    const observe = () => { new MutationObserver(scheduleApply).observe(document.body, { childList: true, subtree: true }); applyFeatures(); };
+    const observe = () => { new MutationObserver(scheduleApply).observe(document.body, { childList: true, subtree: true }); applyFeatures(); loadSegments(); };
     document.body ? observe() : document.addEventListener('DOMContentLoaded', observe, { once: true });
 }
 
-if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, HIDE };
+if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, HIDE, segmentAt };
 else main();
