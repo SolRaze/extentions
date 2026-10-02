@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.0
+// @version      2.1
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -134,7 +134,11 @@ function linkMatch(href, text, pageHost) {
 const STORE = 'mark.store';
 let store;
 const fresh = () => ({ data: {}, meta: { databaseVersion: 3 } });
-const load = () => { store = GM_getValue(STORE) || fresh(); };
+// A store holding keys this script would not build (a utags import keeps www. and slashes) is rekeyed once.
+const load = () => {
+    store = GM_getValue(STORE) || fresh();
+    if (Object.keys(store.data).some(k => rekey(k) !== k)) { const old = store; store = { ...old, data: {} }; merge(old); }
+};
 const commit = () => { GM_setValue(STORE, store); refresh(); };
 const tagsOf = (key) => store.data[key]?.tags || [];
 
@@ -172,14 +176,17 @@ function retag(keys, tag, add) {
     commit();
 }
 const deleteTag = (t) => { retag(Object.keys(store.data), t, false); delete store.meta.colors?.[t]; delete store.meta.effects?.[t]; commit(); };
-// Merges a utags or mark export: tag lists are unioned, the newer meta wins, tag settings fill gaps.
+// The key this script builds for a stored url. '@' satisfies x's @handle rule; non-urls stay as they are.
+const rekey = (k) => match(k, '@')?.key || (norm(k) ? 'https://' + norm(k) : k);
+// Merges a utags or mark export, rekeyed: tag lists are unioned, the newer meta wins, tag settings fill gaps.
 function merge(json) {
     const data = json?.data;
     if (!data || typeof data !== 'object') throw new Error('not a utags or mark export');
     let n = 0;
-    for (const [key, v] of Object.entries(data)) {
+    for (let [key, v] of Object.entries(data)) {
         const tags = (v?.tags || []).filter(t => typeof t === 'string' && t && t !== DELETED);
         if ((v?.tags || []).includes(DELETED) || (!tags.length && !v?.meta?.note)) continue;
+        key = rekey(key);
         const old = store.data[key];
         const meta = !old || (v.meta?.updated || 0) > (old.meta?.updated || 0) ? v.meta : old.meta;
         store.data[key] = { tags: [...new Set([...(old?.tags || []), ...tags])], meta: { ...meta } };
@@ -551,5 +558,5 @@ function main() {
     scan();
 }
 
-if (typeof module !== 'undefined') module.exports = { norm, match, linkMatch, merge, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; } };
+if (typeof module !== 'undefined') module.exports = { norm, load, match, linkMatch, merge, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _store: () => store.data };
 else main();

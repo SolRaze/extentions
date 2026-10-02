@@ -1,7 +1,9 @@
 // Self-check for mark.user.js link rules, tag edits and import merge. Run: node selftest.js
 const assert = require('assert');
 global.GM_setValue = () => {};
-const { match, linkMatch, norm, merge, effectsOf, renameTag, retag, deleteTag, _setStore } = require('./mark.user.js');
+let gmStore;
+global.GM_getValue = () => gmStore;
+const { match, linkMatch, norm, load, merge, effectsOf, renameTag, retag, deleteTag, _setStore } = require('./mark.user.js');
 
 const key = (href, text) => match(href, text)?.key ?? null;
 const type = (href, text) => match(href, text)?.type ?? null;
@@ -92,6 +94,12 @@ retag(['c'], 'z', false);
 deleteTag('q');
 assert.ok(!store.data.c, 'entry without tags or note is gone');
 assert.deepStrictEqual(store.data.a.tags, ['x']);
+
+// load rekeys a utags-shaped store so its tags reach the links they belong to
+gmStore = { data: { 'https://www.youtube.com/watch?v=jNQXAC9IVRw': { tags: ['a'], meta: {} }, 'https://youtu.be/jNQXAC9IVRw': { tags: ['b'], meta: {} }, 'https://x.com/Jack/': { tags: ['c'], meta: {} } }, meta: {} };
+load();
+assert.deepStrictEqual(Object.keys(require('./mark.user.js')._store()).sort(), ['https://x.com/jack', v], 'www, slash, case and youtu.be fold');
+
 
 console.log("ok"); // exit before the scan refresh() scheduled, there is no DOM here
 process.exit(0);
