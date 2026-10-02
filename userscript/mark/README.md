@@ -9,6 +9,7 @@ editor | applied tags on top | every known tag as a pill, sized by use | click t
 typing filters the pills | enter adds typed tag, existing casing reused | tab picks first pill | ⌫ removes last | esc closes
 note field per entry | shown as ✎ chip and chip tooltip
 chips after every tagged link | click opens the editor
+youtube | chips under clamped titles | the watch page title and channel header carry their own tags
 off-site links tag as plain links | same-site links without a rule never
 
 tags page

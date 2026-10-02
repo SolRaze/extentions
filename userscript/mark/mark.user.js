@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.2
+// @version      2.3
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -37,6 +37,8 @@
 
 // Link rules per site. item is the list entry effects apply to: a selector or a function of the link.
 // media lets image-only links count (pin and model grids have no text links).
+// after(a) is the element chips go after, for titles clamped inside a heading. head is the page's
+// own title, which gets the chips of the page's url: a video page has no link to itself.
 // A rule is [type, regex, opts]: the regex runs on the normalized url (host without www/m, path,
 // query); opts.key builds the key from the match (default match[0]), opts.up the parent key whose
 // tags also drive effects (a post's user or community), opts.text must match the link text.
@@ -58,7 +60,9 @@ const SITES = {
         ['repo', new RegExp(`^github\\.com\\/(?!(?:${GH_RESERVED})\\/)([\\w-]+)\\/[\\w.-]+(?=$|[?])`), { up: m => `github.com/${m[1]}` }],
         ['user', new RegExp(`^github\\.com\\/(?!(?:${GH_RESERVED})(?=$|[?]))[\\w-]+(?=$|[?])`)],
     ] },
-    'youtube.com': { item: 'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, yt-lockup-view-model, ytd-comment-thread-renderer, ytd-channel-renderer, ytd-playlist-renderer', links: [
+    'youtube.com': { after: (a) => a.closest('h3') || a,
+        head: '#title h1.ytd-watch-metadata, ytd-reel-video-renderer[is-active] h2.title, yt-page-header-renderer h1, #inner-header-container #container.ytd-channel-name #text',
+        item: 'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, yt-lockup-view-model, ytd-comment-thread-renderer, ytd-channel-renderer, ytd-playlist-renderer', links: [
         ['video', /^youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/)([\w-]{11})/, { key: m => `youtube.com/watch?v=${m[1]}` }],
         ['user', /^youtube\.com\/(@[^/?]+|channel\/[\w-]+|c\/[^/?]+|user\/[^/?]+)/],
     ] },
@@ -251,26 +255,38 @@ function linkInfo(a) {
         const text = a.textContent.trim();
         const label = text || (site.media && (a.getAttribute('aria-label') || a.querySelector('img[alt]')?.alt || '').trim());
         // Image-only links (avatars, thumbnails) would double every chip, so only text links count unless the site is media.
-        const ok = label && text.length < 300 && !a.closest('.mark-chips');
+        const ok = label && text.length < 300 && !a.closest('.mark-chips') && (site.media || !a.querySelector('img, yt-image'));
         i = { href: a.href, m: ok ? linkMatch(a.href, text, pageHost) : null, title: (label || '').slice(0, 160) };
         info.set(a, i);
     }
     return i;
 }
+// Chips for key after el (or inside it, for the page's head); redrawn only when tags, colours or note change.
+function chipsAt(el, i, key, onclick, inside) {
+    const own = tagsOf(key), note = store.data[key]?.meta?.note || '';
+    const shown = own.map(t => t + hueOf(t) + fxOf(t)).join('\n') + '\n' + note;
+    if (i.shown !== shown || (i.chips && !i.chips.isConnected)) {
+        i.chips?.remove();
+        i.chips = own.length || note ? h('span', { className: 'mark-chips', title: note || null, onclick: (e) => { e.preventDefault(); e.stopPropagation(); onclick(); } },
+            own.map(t => chip(t)), note ? h('span', { className: 'mark-chip note' }, '✎') : null) : null;
+        if (i.chips) inside ? el.append(i.chips) : el.after(i.chips);
+        i.shown = shown;
+    }
+    return own;
+}
+const headInfo = new WeakMap();
 function scan() {
     const items = new Map();
+    const head = site.head && document.querySelector(site.head), pm = head && match(location.href, '@');
+    if (pm) {
+        const i = headInfo.get(head)?.key === pm.key ? headInfo.get(head) : { key: pm.key };
+        headInfo.set(head, i);
+        chipsAt(head, i, pm.key, () => edit(null, { ...pm, title: document.title }), true);
+    }
     for (const a of document.querySelectorAll('a[href]')) {
         const i = linkInfo(a);
         if (!i.m) continue;
-        const own = tagsOf(i.m.key), note = store.data[i.m.key]?.meta?.note || '';
-        const shown = own.map(t => t + hueOf(t) + fxOf(t)).join('\n') + '\n' + note;
-        if (i.shown !== shown || (i.chips && !i.chips.isConnected)) {
-            i.chips?.remove();
-            i.chips = own.length || note ? h('span', { className: 'mark-chips', title: note || null, onclick: (e) => { e.preventDefault(); e.stopPropagation(); edit(a); } },
-                own.map(t => chip(t)), note ? h('span', { className: 'mark-chip note' }, '✎') : null) : null;
-            if (i.chips) a.after(i.chips);
-            i.shown = shown;
-        }
+        const own = chipsAt(site.after ? site.after(a) : a, i, i.m.key, () => edit(a));
         const fx = effectsOf(i.m.up ? [...own, ...tagsOf(i.m.up)] : own);
         if (!fx.length) continue;
         const item = (typeof site.item === 'function' ? site.item(a) : site.item && a.closest(site.item)) || a;
