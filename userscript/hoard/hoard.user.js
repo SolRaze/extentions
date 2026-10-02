@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.14
+// @version      1.15
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -33,11 +33,16 @@ const DL_DELAY = 800;     // ms between downloaded posts
 const RESUME_MS = 3600e3; // a stopped walk older than this restarts: its cdn links have expired
 
 // Pure helpers (exported for selftest.js)
-// .heic/.heif links serve JPEG, which the browser saves as .jpeg: record the name it lands under.
+// The extension of the format the CDN serves: stp=dst-<fmt> names it (a .heic path serves JPEG
+// under dst-jpg); else the path's own. A name that disagrees with the served type is renamed by the
+// browser on save, so the archive would point at a file that is not there. dst-jpegr is an HDR
+// JPEG and falls through to the path's .jpg.
 const extOf = (url) => {
-    const m = /\.(\w{2,4})$/.exec(new URL(url).pathname);
-    const ext = m ? m[1].toLowerCase() : 'jpg';
-    return /^hei[cf]$/.test(ext) ? 'jpeg' : ext;
+    const u = new URL(url);
+    const served = /^dst-(jpg|webp|png|heic|avif)(?![a-z])/.exec(u.searchParams.get('stp') || '');
+    if (served) return served[1];
+    const m = /\.(\w{2,4})$/.exec(u.pathname);
+    return m ? m[1].toLowerCase() : 'jpg';
 };
 
 // Largest rendition the API offers: video over its poster, else the first image candidate.
