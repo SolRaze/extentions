@@ -62,6 +62,8 @@ index.html never written | data: url over 2 MB dropped | fixed 1.8 | written fro
 clicks while busy stacked `busy` in the status | fixed 1.11
 error: not_whitelisted | extension missing from the whitelist above | 1.13 names it | add it, sync again
 viewer misses .heic photos | instagram serves them as jpeg, browser renames | fixed 1.15 | extension from the served format `stp=dst-<fmt>` | rename .jpeg to .jpg, sync again
+sync fails posts after a refresh that never finished | cdn links expire hours after they load | 1.16 fails them at once, reason shown live | finish a refresh, then sync
+reload mid-refresh lost the whole walk | fixed 1.16 | saved every 25 pages | next refresh within the hour resumes
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 

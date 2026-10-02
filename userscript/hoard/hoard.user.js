@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.15
+// @version      1.16
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -37,6 +37,12 @@ const RESUME_MS = 3600e3; // a stopped walk older than this restarts: its cdn li
 // under dst-jpg); else the path's own. A name that disagrees with the served type is renamed by the
 // browser on save, so the archive would point at a file that is not there. dst-jpegr is an HDR
 // JPEG and falls through to the path's .jpg.
+// oe=<hex unix seconds> is when a signed CDN link stops working; a link without one never expires.
+const expired = (url, now = Date.now()) => {
+    const oe = new URL(url).searchParams.get('oe');
+    return !!oe && parseInt(oe, 16) * 1000 <= now;
+};
+
 const extOf = (url) => {
     const u = new URL(url);
     const served = /^dst-(jpg|webp|png|heic|avif)(?![a-z])/.exec(u.searchParams.get('stp') || '');
@@ -392,7 +398,7 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 </body></html>
 `;
 
-if (typeof module !== 'undefined') module.exports = { extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
+if (typeof module !== 'undefined') module.exports = { expired, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
 else main();
 
 function main() {
@@ -420,8 +426,8 @@ function main() {
         do {
             pages.at = max;
             const d = await api(path + (max ? (path.includes('?') ? '&' : '?') + 'max_id=' + encodeURIComponent(max) : ''));
-            onItems(d.items || []);
             max = d.more_available ? d.next_max_id : '';
+            onItems(d.items || [], max);
             if (max) await sleep(PAGE_DELAY);
         } while (max);
     }
@@ -538,11 +544,14 @@ function main() {
             render();
             return ids.filter(id => !names[id]).length;
         };
+        let walked = 0;
         try {
-            await pages('feed/saved/posts/', batch => {
+            await pages('feed/saved/posts/', (batch, next) => {
                 batch.forEach(x => x.media && items.push(normalize(
                     { ...x.media, saved_collection_ids: x.media.saved_collection_ids || x.saved_collection_ids }, items.length)));
                 status(`saved ${items.length}`);
+                // checkpoint: a reload mid-walk resumes from here instead of losing the walk
+                if (next && ++walked % 25 === 0) publish(next);
             }, resume?.next);
         } catch (e) {
             // keep what arrived: a partial library still shows and syncs
@@ -641,7 +650,7 @@ function main() {
         status(`sync 0/${todo.length}`);
         for (const it of todo) {
             n++;
-            status(`sync ${n}/${todo.length} @${it.user}${failed ? ` · ${failed} failed` : ''}`);
+            status(`sync ${n}/${todo.length} @${it.user}${failed ? ` · ${failed} failed (${status.first})` : ''}`);
             if (!arc.profiles[it.user] && it.pic) {
                 const pic = `profiles/${safe(it.user)}.jpg`;
                 try {
@@ -653,6 +662,7 @@ function main() {
                 if (!it.files.length) throw new Error('no media');
                 const want = dirsOf(it, colName), have = dirsHave(arc.posts[it.code]);
                 const missing = want.filter(d => !have.includes(d));
+                if (missing.length && it.files.some(f => expired(f.url))) throw new Error('link expired, refresh first');
                 for (const dir of missing) {
                     for (const [i, f] of it.files.entries()) await gmDownload(f.url, 'reference/' + relPath(it, i, f.url, dir));
                 }
