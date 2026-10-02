@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.8
+// @version      1.9
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -30,6 +30,7 @@
 
 const PAGE_DELAY = 1500;  // ms between feed pages
 const DL_DELAY = 800;     // ms between downloaded posts
+const RESUME_MS = 3600e3; // a stopped walk older than this restarts: its cdn links have expired
 
 // Pure helpers (exported for selftest.js)
 const extOf = (url) => {
@@ -518,8 +519,8 @@ function main() {
                 batch => batch.forEach(c => { names[String(c.collection_id)] = c.collection_name; }));
             GM_setValue(NAMES_KEY, names);
         } catch (e) { console.warn('[hoard] collection list unavailable, using saved page names', e); }
-        // lib.next: the cursor a failed walk stopped at; the next refresh continues from it
-        const resume = lib?.next ? lib : null;
+        // lib.next: the cursor a failed walk stopped at; a refresh within RESUME_MS continues from it
+        const resume = lib?.next && Date.now() - lib.at < RESUME_MS ? lib : null;
         const items = resume ? resume.items : [];
         const publish = (next) => {
             const ids = [...new Set(items.flatMap(it => it.cols))];

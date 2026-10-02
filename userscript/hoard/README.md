@@ -45,7 +45,7 @@ whitelist `.html` `.json` `.jpg` `.mp4` `.webp` extensions
 browser setting ask where to save off | else a prompt per file
 
 gotchas
-instagram 5xx or 429 retried after 5, 15, 45 s | still failing keeps the posts fetched so far | next refresh continues from that page
+instagram 5xx or 429 retried after 5, 15, 45 s | still failing keeps the posts fetched so far | next refresh within an hour continues from that page | later ones start over, cdn links expire
 throttled 1.5 s per feed page | 0.8 s per downloaded post | fast scraping risks account flag
 per-collection feeds 404 since instagram retired them | collections rebuilt from the saved feed
 hide selectors are instagram's generated class names | a deploy renames them | stale ones just stop hiding
