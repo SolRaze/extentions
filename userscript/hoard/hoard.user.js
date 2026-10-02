@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.18
+// @version      1.19
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -452,10 +452,21 @@ function main() {
         #hoard { position: fixed; inset: 0; z-index: 2147483000; background: #0b0b0c; color: #ddd;
                  font: 13px/1.4 -apple-system, system-ui, sans-serif; display: flex; flex-direction: column; }
         #hoard[hidden], #hoard-view[hidden] { display: none; }
-        #hoard .bar { display: flex; gap: 6px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #222; flex-wrap: wrap; }
+        #hoard .bar { display: flex; gap: 6px 12px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #222; flex-wrap: wrap; }
+        #hoard .group { display: flex; gap: 6px; align-items: center; }
+        #hoard .filters { flex: 1 1 360px; min-width: 0; flex-wrap: wrap; }
+        #hoard .filters select { flex: 0 1 auto; min-width: 0; max-width: 220px; }
+        #hoard .filters input { flex: 1 1 120px; min-width: 0; }
+        #hoard .tools { margin-left: auto; }
+        @media (max-width: 640px) {
+            #hoard .filters { order: 1; flex-basis: 100%; }
+            #hoard .filters select { flex: 1 1 0; max-width: none; }
+            #hoard .filters input { flex-basis: 100%; }
+        }
         #hoard button, #hoard select, #hoard input { background: #1a1a1d; color: #ddd; border: 1px solid #333; border-radius: 6px; padding: 4px 8px; font: inherit; }
         #hoard button:hover { background: #26262a; }
-        #hoard .status { margin-left: auto; opacity: .7; }
+        #hoard .status { order: 2; flex-basis: 100%; opacity: .7; font-size: 12px; overflow-wrap: anywhere; }
+        #hoard .status:empty { display: none; }
         #hoard .body { flex: 1; overflow: auto; padding: 10px; }
         #hoard .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
         #hoard .tile { position: relative; aspect-ratio: 1; background: #151517; cursor: pointer; overflow: hidden; border-radius: 4px; }
@@ -525,13 +536,15 @@ function main() {
 
     root.append(
         h('div', { className: 'bar' },
-            h('button', { textContent: 'refresh', onclick: () => run(load) }),
-            colSel, typeSel, sortSel, search,
-            h('button', { textContent: 'sync to disk', onclick: () => run(sync) }),
-            h('button', { textContent: 'log', title: 'write Downloads/reference/hoard-log.json', onclick: () => saveLog().then(() => status('log written to reference/hoard-log.json')) }),
-            updateBtn,
-            statusEl,
-            h('button', { textContent: '✕', onclick: close })),
+            h('div', { className: 'group act' },
+                h('button', { textContent: 'refresh', title: 'pull the saved feed', onclick: () => run(load) }),
+                h('button', { textContent: 'sync to disk', title: 'download what is not on disk yet', onclick: () => run(sync) })),
+            h('div', { className: 'group filters' }, colSel, typeSel, sortSel, search),
+            h('div', { className: 'group tools' },
+                h('button', { textContent: 'log', title: 'write Downloads/reference/hoard-log.json', onclick: () => saveLog().then(() => status('log written to reference/hoard-log.json')) }),
+                updateBtn,
+                h('button', { textContent: '✕', title: 'close (esc)', onclick: close })),
+            statusEl),
         body);
     document.body.append(root, viewer,
         h('button', { id: 'hoard-pill', textContent: 'hoard', onclick: open }));
