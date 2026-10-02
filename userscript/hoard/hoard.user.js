@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.10
+// @version      1.11
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -482,7 +482,7 @@ function main() {
 
     let busy = false;
     async function run(task) {
-        if (busy) return status(status.last + ' · busy, wait for it to finish');
+        if (busy) return status(status.last.split(' · busy')[0] + ' · busy, wait for it to finish');
         busy = true;
         try { await task(); } catch (e) { status('error: ' + e.message); console.error('[hoard]', e); }
         busy = false;

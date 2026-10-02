@@ -43,6 +43,7 @@ tampermonkey setup
 download mode browser api | subfolders and overwrite need it
 whitelist `.html` `.json` `.jpg` `.mp4` `.webp` extensions
 browser setting ask where to save off | else a prompt per file
+browser setting show downloads when they're done off | else the downloads popup flashes per file | chrome://settings/downloads
 
 gotchas
 instagram 5xx or 429 retried after 5, 15, 45 s | still failing keeps the posts fetched so far | next refresh within an hour continues from that page | later ones start over, cdn links expire
@@ -51,6 +52,14 @@ per-collection feeds 404 since instagram retired them | collections rebuilt from
 hide selectors are instagram's generated class names | a deploy renames them | stale ones just stop hiding
 media id stays a string | pk overflows a js number
 tampermonkey storage cleared = archive lost | next sync redownloads everything
+
+issues
+downloads popup flashes every file | glitches with the address bar hidden | open | fix: browser setting above
+sync counter crawls, every post failed | cdn links in the library expired | fixed 1.10 | refresh, then sync
+refresh stuck on 572 at the feed end | resumed the stale walk forever | fixed 1.10 | resumes only within an hour
+index.html never written | data: url over 2 MB dropped | fixed 1.8 | written from a blob
+`collection <id>` folders | sync ran before names were known | fixed 1.8 | posts wait | tidy.py moves old ones
+clicks while busy stacked `busy` in the status | fixed 1.11
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 
