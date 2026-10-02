@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.13
+// @version      1.14
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -33,9 +33,11 @@ const DL_DELAY = 800;     // ms between downloaded posts
 const RESUME_MS = 3600e3; // a stopped walk older than this restarts: its cdn links have expired
 
 // Pure helpers (exported for selftest.js)
+// .heic/.heif links serve JPEG, which the browser saves as .jpeg: record the name it lands under.
 const extOf = (url) => {
     const m = /\.(\w{2,4})$/.exec(new URL(url).pathname);
-    return m ? m[1].toLowerCase() : 'jpg';
+    const ext = m ? m[1].toLowerCase() : 'jpg';
+    return /^hei[cf]$/.test(ext) ? 'jpeg' : ext;
 };
 
 // Largest rendition the API offers: video over its poster, else the first image candidate.

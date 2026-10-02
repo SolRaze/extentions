@@ -61,6 +61,7 @@ index.html never written | data: url over 2 MB dropped | fixed 1.8 | written fro
 `collection <id>` folders | sync ran before names were known | fixed 1.8 | posts wait | tidy.py moves old ones
 clicks while busy stacked `busy` in the status | fixed 1.11
 error: not_whitelisted | extension missing from the whitelist above | 1.13 names it | add it, sync again
+viewer misses .heic photos | the browser saves them as .jpeg | fixed 1.14 | next sync rewrites sidecars and index only
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 
