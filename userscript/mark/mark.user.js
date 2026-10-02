@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.1
+// @version      2.2
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -27,6 +27,10 @@
 // @grant        GM_setValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
+// @grant        GM_info
+// @connect      greasyfork.org
 // @downloadURL https://update.greasyfork.org/scripts/598296/mark.user.js
 // @updateURL https://update.greasyfork.org/scripts/598296/mark.meta.js
 // ==/UserScript==
@@ -196,6 +200,20 @@ function merge(json) {
     commit();
     return n;
 }
+// Dotted versions compared numerically: 2.10 is newer than 2.9.
+const newer = (a, b) => {
+    const x = a.split('.').map(Number), y = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+    return false;
+};
+// Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.
+const META_URL = 'https://update.greasyfork.org/scripts/598296/mark.meta.js';
+const latest = () => new Promise((ok, fail) => GM_xmlhttpRequest({
+    method: 'GET', url: META_URL + '?t=' + Date.now(), timeout: 15000,
+    onload: r => { const v = /@version\s+(\S+)/.exec(r.responseText); v ? ok(v[1]) : fail(new Error('no version in meta')); },
+    onerror: () => fail(new Error('greasyfork unreachable')), ontimeout: () => fail(new Error('greasyfork timed out')),
+}));
+
 let undoSnap = null;
 const snapshot = () => { undoSnap = JSON.stringify(store); };
 const undo = () => { if (undoSnap) { store = JSON.parse(undoSnap); undoSnap = null; commit(); } };
@@ -501,8 +519,19 @@ function openLib() {
         ]), undoSnap ? h('button', { className: 'ib', onclick: () => { undo(); draw(); } }, 'undo') : null);
         msg = '';
     }
+    const updateBtn = h('button', { className: 'ib', title: 'check greasyfork for a new version', onclick: async () => {
+        const mine = GM_info.script.version;
+        try {
+            const v = await latest();
+            if (!newer(v, mine)) { updateBtn.textContent = 'update'; msg = `${mine} is the latest`; return draw(); }
+            msg = `installing ${v} | reload the page after`;
+            GM_openInTab(GM_info.script.downloadURL || META_URL.replace('.meta.js', '.user.js'), { active: true });
+        } catch (e) { msg = 'update check failed: ' + e.message; }
+        draw();
+    } }, 'update');
+    latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
     lib = h('div', { className: 'lib' },
-        h('div', { className: 'top' }, h('b', {}, 'mark'), search, h('button', { className: 'ib', title: 'close (esc)', onclick: closeLib }, '✕')),
+        h('div', { className: 'top' }, h('b', {}, 'mark'), search, updateBtn, h('button', { className: 'ib', title: 'close (esc)', onclick: closeLib }, '✕')),
         h('div', {}, cloud, tagbar), list, foot);
     lib.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pop) closeLib(); });
     root.append(lib);
@@ -558,5 +587,5 @@ function main() {
     scan();
 }
 
-if (typeof module !== 'undefined') module.exports = { norm, load, match, linkMatch, merge, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _store: () => store.data };
+if (typeof module !== 'undefined') module.exports = { newer, norm, load, match, linkMatch, merge, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _store: () => store.data };
 else main();

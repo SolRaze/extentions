@@ -19,6 +19,7 @@ compact rows | type icon, title, chips | url and note on hover | edit | delete
 bulk | row checkboxes | shift-click extends | select all shown | add tag | remove tag | delete
 undo | one step back for rename, delete and bulk
 tag this page | show hidden | export | import
+update | checks greasyfork when the page opens, label shows the new version | click opens tampermonkey's install page | reload after
 
 effects
 set per tag on the tags page | label | star | dim | hide

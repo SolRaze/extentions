@@ -3,7 +3,7 @@ const assert = require('assert');
 global.GM_setValue = () => {};
 let gmStore;
 global.GM_getValue = () => gmStore;
-const { match, linkMatch, norm, load, merge, effectsOf, renameTag, retag, deleteTag, _setStore } = require('./mark.user.js');
+const { newer, match, linkMatch, norm, load, merge, effectsOf, renameTag, retag, deleteTag, _setStore } = require('./mark.user.js');
 
 const key = (href, text) => match(href, text)?.key ?? null;
 const type = (href, text) => match(href, text)?.type ?? null;
@@ -100,6 +100,8 @@ gmStore = { data: { 'https://www.youtube.com/watch?v=jNQXAC9IVRw': { tags: ['a']
 load();
 assert.deepStrictEqual(Object.keys(require('./mark.user.js')._store()).sort(), ['https://x.com/jack', v], 'www, slash, case and youtu.be fold');
 
+
+assert.ok(newer('2.10', '2.9') && !newer('2.1', '2.1') && !newer('2.0', '2.0.1'));
 
 console.log("ok"); // exit before the scan refresh() scheduled, there is no DOM here
 process.exit(0);
