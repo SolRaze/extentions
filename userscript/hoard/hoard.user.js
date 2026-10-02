@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.16
+// @version      1.17
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -416,6 +416,7 @@ function main() {
             });
             if (res.ok) return res.json();
             if ((res.status < 500 && res.status !== 429) || wait > 45000) throw new Error(`${path} ${res.status}`);
+            log('api retry', { path, status: res.status, wait });
             status(`instagram ${res.status}, retrying in ${wait / 1000}s`);
             await sleep(wait);
         }
@@ -475,6 +476,19 @@ function main() {
     const body = h('div', { className: 'body' });
     const status = (t) => { statusEl.textContent = status.last = t; };
 
+    // Debug log: the last LOG_MAX events in tampermonkey storage `hoard.log`, kept across reloads.
+    // Every refresh and sync, and the log button, write it to reference/hoard-log.json.
+    const LOG_KEY = 'hoard.log', LOG_MAX = 2000;
+    const logs = GM_getValue(LOG_KEY, []);
+    const log = (event, data = {}) => {
+        logs.push({ t: new Date().toISOString(), v: GM_info.script.version, event, ...data });
+        if (logs.length > LOG_MAX) logs.splice(0, logs.length - LOG_MAX);
+        GM_setValue(LOG_KEY, logs);
+        console.log('[hoard]', event, data);
+    };
+    const saveLog = () => save(JSON.stringify(logs, null, 1), 'application/json', 'reference/hoard-log.json')
+        .catch(e => console.warn('[hoard] log not written', e.message));
+
     const colSel = h('select', { onchange: () => { view.col = colSel.value; render(); } });
     const typeSel = h('select', { onchange: () => { view.type = typeSel.value; render(); } },
         ...['', 'photo', 'album', 'video', 'reel'].map(v => h('option', { value: v, textContent: v || 'all types' })));
@@ -487,6 +501,7 @@ function main() {
             h('button', { textContent: 'refresh', onclick: () => run(load) }),
             colSel, typeSel, sortSel, search,
             h('button', { textContent: 'sync to disk', onclick: () => run(sync) }),
+            h('button', { textContent: 'log', title: 'write Downloads/reference/hoard-log.json', onclick: () => saveLog().then(() => status('log written to reference/hoard-log.json')) }),
             statusEl,
             h('button', { textContent: '✕', onclick: close })),
         body);
@@ -497,8 +512,11 @@ function main() {
     async function run(task) {
         if (busy) return status(status.last.split(' · busy')[0] + ' · busy, wait for it to finish');
         busy = true;
-        try { await task(); } catch (e) { status('error: ' + e.message); console.error('[hoard]', e); }
+        log('start', { task: task.name, page: location.pathname });
+        try { await task(); log('done', { task: task.name, status: status.last }); }
+        catch (e) { status('error: ' + e.message); log('error', { task: task.name, error: e.message, stack: e.stack }); }
         busy = false;
+        await saveLog();
     }
 
     // Collection names by id, merged across refreshes: the list endpoint may 404, and the saved
@@ -531,7 +549,7 @@ function main() {
             await pages('collections/list/?collection_types=' + encodeURIComponent('["MEDIA"]'),
                 batch => batch.forEach(c => { names[String(c.collection_id)] = c.collection_name; }));
             GM_setValue(NAMES_KEY, names);
-        } catch (e) { console.warn('[hoard] collection list unavailable, using saved page names', e); }
+        } catch (e) { log('collection list unavailable', { error: e.message }); }
         // lib.next: the cursor a failed walk stopped at; a refresh within RESUME_MS continues from it
         // lib.from: when the walk began, carried across resumes; a library without it restarts
         const resume = lib?.next && Date.now() - lib.from < RESUME_MS ? lib : null;
@@ -551,7 +569,7 @@ function main() {
                     { ...x.media, saved_collection_ids: x.media.saved_collection_ids || x.saved_collection_ids }, items.length)));
                 status(`saved ${items.length}`);
                 // checkpoint: a reload mid-walk resumes from here instead of losing the walk
-                if (next && ++walked % 25 === 0) publish(next);
+                if (next && ++walked % 25 === 0) { publish(next); log('refresh checkpoint', { items: items.length }); }
             }, resume?.next);
         } catch (e) {
             // keep what arrived: a partial library still shows and syncs
@@ -559,6 +577,7 @@ function main() {
             throw new Error(`${e.message} after ${items.length} posts, refresh continues from there`);
         }
         const unnamed = publish('');
+        log('refresh end', { items: items.length, resumed: !!resume, names: Object.keys(names).length, unnamed });
         if (unnamed) status(`${unnamed} collection names unknown: open instagram.com/<you>/saved/, then refresh`);
     }
 
@@ -604,14 +623,18 @@ function main() {
 
     // GM_download never calls back when the download is blocked outright (extension not whitelisted,
     // download mode not browser api), so a hard timeout turns that into a visible failure.
-    const gmDownload = (url, name) => new Promise((ok, fail) => {
+    const gmDownload = (url, name) => new Promise((ok, reject) => {
+        const fail = (err, raw) => {
+            log('download failed', { name, error: err.message, raw, url: typeof url === 'string' ? url.split('?')[0] : 'blob' });
+            reject(err);
+        };
         const t = setTimeout(() => fail(new Error('no response, check tampermonkey download settings')), 60000);
         GM_download({
             url, name, conflictAction: 'overwrite', onload: () => { clearTimeout(t); ok(); },
             onerror: e => {
                 clearTimeout(t);
                 const why = e?.error || 'failed';
-                fail(new Error(why === 'not_whitelisted' ? `${why}: add .${name.split('.').pop()} to tampermonkey's download whitelist` : why));
+                fail(new Error(why === 'not_whitelisted' ? `${why}: add .${name.split('.').pop()} to tampermonkey's download whitelist` : why), e);
             },
             ontimeout: () => { clearTimeout(t); fail(new Error('timeout')); },
         });
@@ -647,6 +670,7 @@ function main() {
         const waiting = lib.items.filter(it => it.cols.some(id => !names[id])).length;
         const todo = lib.items.filter(it => it.cols.every(id => names[id]) && due(it));
         let n = 0, failed = 0, fetched = 0;
+        log('sync start', { items: lib.items.length, todo: todo.length, waiting, renamed: renamed.length, libAge: Math.round((Date.now() - lib.at) / 60000) + ' min' });
         status(`sync 0/${todo.length}`);
         for (const it of todo) {
             n++;
@@ -656,7 +680,7 @@ function main() {
                 try {
                     await gmDownload(it.pic, 'reference/' + pic);
                     arc.profiles[it.user] = { name: it.name, pic };
-                } catch (e) { console.warn('[hoard] profile', it.user, e.message); }
+                } catch (e) { log('profile failed', { user: it.user, error: e.message }); }
             }
             try {
                 if (!it.files.length) throw new Error('no media');
@@ -678,7 +702,7 @@ function main() {
                 if (missing.length) await sleep(DL_DELAY);
             } catch (e) {
                 failed++;
-                console.warn('[hoard]', it.code, e.message);
+                log('post failed', { code: it.code, user: it.user, cols: it.cols, files: it.files.map(f => ({ ext: extOf(f.url), expired: expired(f.url), host: new URL(f.url).host })), error: e.message });
                 if (failed === 1) status.first = e.message;
                 await sleep(DL_DELAY);
             }
@@ -688,6 +712,7 @@ function main() {
         const html = buildIndex(arc, Date.now());
         await save(html, 'text/html', 'reference/index.html');
         render();
+        log('sync end', { synced: todo.length - failed, fetched, failed, onDisk: Object.keys(arc.posts).length, renamed: renamed.length, waiting });
         status(`synced ${todo.length - failed} (${fetched} with media) · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}${renamed.length ? ` · ${renamed.length} folders renamed, run tidy.py` : ''}${waiting ? ` · ${waiting} wait for collection names, refresh from /saved/` : ''}`);
     }
 

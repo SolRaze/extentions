@@ -24,6 +24,10 @@ sidecar fields come from the cached library | refresh brings location, tags, aud
 archive of what is on disk lives in tampermonkey storage `hoard.archive` | local paths, never cdn urls
 saved after every post | interrupted sync resumes | failures retry on next sync
 
+log
+every run, api retry, failed post and failed download logged | tampermonkey storage `hoard.log` | last 2000 entries | also in the console as [hoard]
+written to Downloads/reference/hoard-log.json after each run | log button writes it on demand
+
 disk
 paths sit under the browser download folder | Downloads here
 Downloads/reference/index.html | offline viewer, library data inlined, opens from file://
