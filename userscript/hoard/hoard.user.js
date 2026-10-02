@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.12
+// @version      1.13
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -592,7 +592,11 @@ function main() {
         const t = setTimeout(() => fail(new Error('no response, check tampermonkey download settings')), 60000);
         GM_download({
             url, name, conflictAction: 'overwrite', onload: () => { clearTimeout(t); ok(); },
-            onerror: e => { clearTimeout(t); fail(new Error(e?.error || 'failed')); },
+            onerror: e => {
+                clearTimeout(t);
+                const why = e?.error || 'failed';
+                fail(new Error(why === 'not_whitelisted' ? `${why}: add .${name.split('.').pop()} to tampermonkey's download whitelist` : why));
+            },
             ontimeout: () => { clearTimeout(t); fail(new Error('timeout')); },
         });
     });

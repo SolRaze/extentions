@@ -41,7 +41,7 @@ photo click fits screen | second click 1:1 | third closes | esc goes back
 
 tampermonkey setup
 download mode browser api | subfolders and overwrite need it
-whitelist `.html` `.json` `.jpg` `.mp4` `.webp` extensions
+whitelist `.html` `.json` `.jpg` `.jpeg` `.png` `.mp4` `.webp` | settings, config mode advanced, downloads
 browser setting ask where to save off | else a prompt per file
 browser setting show downloads when they're done off | else the downloads popup flashes per file | chrome://settings/downloads
 
@@ -60,6 +60,7 @@ refresh stuck on 572 at the feed end | resumed the stale walk forever | fixed 1.
 index.html never written | data: url over 2 MB dropped | fixed 1.8 | written from a blob
 `collection <id>` folders | sync ran before names were known | fixed 1.8 | posts wait | tidy.py moves old ones
 clicks while busy stacked `busy` in the status | fixed 1.11
+error: not_whitelisted | extension missing from the whitelist above | 1.13 names it | add it, sync again
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 
