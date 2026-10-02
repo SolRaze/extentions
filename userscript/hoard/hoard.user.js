@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.11
+// @version      1.12
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -446,7 +446,7 @@ function main() {
         #hoard-view a { color: #8ab4ff; }
         #hoard-view .x { position: fixed; top: 12px; right: 16px; z-index: 1; background: #1a1a1d; color: #ddd; border: 1px solid #333;
                          border-radius: 50%; width: 32px; height: 32px; font: 16px system-ui; cursor: pointer; }
-        #hoard-pill { position: fixed; left: 10px; bottom: 10px; z-index: 2147482999; background: #1a1a1d; color: #ddd;
+        #hoard-pill { position: fixed; right: 10px; top: 8px; z-index: 2147482999; background: #1a1a1d; color: #ddd;
                       border: 1px solid #333; border-radius: 12px; padding: 3px 10px; font: 12px system-ui; cursor: pointer; }
     `);
 

@@ -3,7 +3,7 @@ hoard
 instagram saved collections as offline reference library | synced to disk | read-only, never writes to the account
 
 usage
-hoard pill bottom-left | or tampermonkey menu open hoard | sync to disk | esc or ✕ closes
+hoard pill top-right, same spot as ✕ | or tampermonkey menu open hoard | sync to disk | esc or ✕ closes
 refresh pulls saved feed with tab session | cached until next refresh
 collection membership comes from each saved post | names from the collection list, else the saved page
 refresh from instagram.com/<you>/saved/ | scrolls the collection grid to the end | names kept after that
