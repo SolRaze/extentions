@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.3
+// @version      2.4
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -305,9 +305,9 @@ const refresh = () => { if (!scanTimer && typeof document !== 'undefined') scanT
 
 const PAGE_CSS = `
 .mark-chips { display: inline-flex; flex-wrap: wrap; gap: 3px; margin: 0 4px; vertical-align: middle; cursor: pointer; }
-.mark-chip { font: 600 11px/17px system-ui, sans-serif; padding: 0 7px; border-radius: 9px; white-space: nowrap;
-    background: hsl(var(--h) 80% 50% / .18); color: hsl(var(--h) 70% 45%); }
-.mark-chip.note { background: #8882; color: #888; }
+.mark-chip { font: 600 12px/18px system-ui, sans-serif; padding: 0 8px; border-radius: 9px; white-space: nowrap;
+    background: hsl(var(--h) 60% 36%); color: #fff; }
+.mark-chip.note { background: #666; }
 html:not(.mark-show-hidden) [data-mark~="hide"] { display: none !important; }
 html.mark-show-hidden [data-mark~="hide"] { opacity: .25; }
 [data-mark~="dim"] { opacity: .35; transition: opacity .15s; }
@@ -326,6 +326,9 @@ input:focus, textarea:focus { outline: 1px solid #4b6bfb; }
     background: #222c; color: #fff; display: none; place-items: center; font-size: 12px; box-shadow: 0 1px 4px #0005; }
 .btn.on { display: grid; }
 .btn:hover { background: #4b6bfb; }
+.pill-open { position: fixed; right: 10px; bottom: 10px; z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333;
+    border-radius: 12px; padding: 3px 10px; font: 12px system-ui; opacity: .7; }
+.pill-open:hover { opacity: 1; }
 .pop, .lib { color: #e8e8ea; background: #1c1c20; }
 .pop { position: fixed; z-index: 2147483647; width: 380px; padding: 12px; display: grid; gap: 9px;
     border: 1px solid #ffffff1a; border-radius: 12px; box-shadow: 0 12px 40px #0008; }
@@ -576,7 +579,7 @@ function main() {
     host = h('div', { id: 'mark-ui' });
     root = host.attachShadow({ mode: 'closed' });
     btn = h('button', { className: 'btn', title: 'tag (t)', onclick: () => hovered && edit(hovered), onmouseenter: () => clearTimeout(hideTimer), onmouseleave: hideBtnSoon }, '🏷');
-    root.append(h('style', {}, UI_CSS), btn);
+    root.append(h('style', {}, UI_CSS), btn, h('button', { className: 'pill-open', title: 'tags page (alt+shift+t)', onclick: openLib }, 'mark'));
     GM_addStyle(PAGE_CSS + (site.css || ''));
     document.documentElement.append(host);
     setShowHidden(GM_getValue('mark.showHidden', false));
