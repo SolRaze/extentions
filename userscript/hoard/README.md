@@ -63,6 +63,7 @@ issues
 downloads popup flashes every file | glitches with the address bar hidden | open | fix: browser setting above
 sync counter crawls, every post failed | cdn links in the library expired | fixed 1.10 | refresh, then sync
 refresh stuck on 572 at the feed end | resumed the stale walk forever | fixed 1.10 | resumes only within an hour
+572 at the page after the last saved post | refresh again within the hour gets 572 at the same cursor | fixed 1.20 | counted as the feed end, library complete
 index.html never written | data: url over 2 MB dropped | fixed 1.8 | written from a blob
 `collection <id>` folders | sync ran before names were known | fixed 1.8 | posts wait | tidy.py moves old ones
 clicks while busy stacked `busy` in the status | fixed 1.11

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.19
+// @version      1.20
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -613,9 +613,17 @@ function main() {
                 if (next && ++walked % 25 === 0) { publish(next); log('refresh checkpoint', { items: items.length }); }
             }, resume?.next);
         } catch (e) {
-            // keep what arrived: a partial library still shows and syncs
-            if (items.length) publish(pages.at);
-            throw new Error(`${e.message} after ${items.length} posts, refresh continues from there`);
+            // instagram answers 572 for the page past the last saved post. A resumed walk that gets
+            // 572 again at its first cursor, with nothing new, is at the end of the feed.
+            const is572 = / 572$/.test(e.message);
+            if (!(is572 && resume && items.length === resume.items.length)) {
+                // keep what arrived: a partial library still shows and syncs
+                if (items.length) publish(pages.at);
+                throw new Error(is572
+                    ? `572 after ${items.length} posts | likely the feed end, sync now | refresh again in 10 min to confirm`
+                    : `${e.message} after ${items.length} posts, refresh continues from there`);
+            }
+            log('feed end', { items: items.length, cursor: pages.at });
         }
         const unnamed = publish('');
         log('refresh end', { items: items.length, resumed: !!resume, names: Object.keys(names).length, unnamed });
