@@ -11,6 +11,7 @@ unknown name = post waits, sync skips it | status shows the count | refresh from
 collection renamed on instagram = renamed in the archive | no redownload | tidy.py in the hoard repo moves the folder on disk
 tab title reads saved on every instagram page
 hide elements on by default | 20 selectors in HIDE | tampermonkey menu hide elements on/off | choice kept
+update button checks greasyfork | panel open checks once, label shows the new version | click opens tampermonkey's install page | reload instagram after
 in-tab library covers the rest of instagram | filter collection | type | user or caption | sort saved | newest | oldest | user
 
 sync

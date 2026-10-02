@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.17
+// @version      1.18
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -15,8 +15,11 @@
 // @grant        GM_getValue
 // @grant        GM_download
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
 // @connect      cdninstagram.com
 // @connect      fbcdn.net
+// @connect      greasyfork.org
 // @downloadURL https://update.greasyfork.org/scripts/598006/hoard.user.js
 // @updateURL https://update.greasyfork.org/scripts/598006/hoard.meta.js
 // ==/UserScript==
@@ -43,6 +46,12 @@ const expired = (url, now = Date.now()) => {
     return !!oe && parseInt(oe, 16) * 1000 <= now;
 };
 
+// Dotted versions compared numerically: 1.17 is newer than 1.9.
+const newer = (a, b) => {
+    const x = a.split('.').map(Number), y = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+    return false;
+};
 const extOf = (url) => {
     const u = new URL(url);
     const served = /^dst-(jpg|webp|png|heic|avif)(?![a-z])/.exec(u.searchParams.get('stp') || '');
@@ -398,7 +407,7 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 </body></html>
 `;
 
-if (typeof module !== 'undefined') module.exports = { expired, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
+if (typeof module !== 'undefined') module.exports = { expired, newer, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
 else main();
 
 function main() {
@@ -496,12 +505,31 @@ function main() {
         ...Object.keys(SORTS).map(v => h('option', { value: v, textContent: v })));
     const search = h('input', { placeholder: 'user or caption', oninput: () => { view.q = search.value; render(); } });
 
+    // Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.
+    const META_URL = 'https://update.greasyfork.org/scripts/598006/hoard.meta.js';
+    const latest = () => new Promise((ok, fail) => GM_xmlhttpRequest({
+        method: 'GET', url: META_URL + '?t=' + Date.now(), timeout: 15000,
+        onload: r => { const v = /@version\s+(\S+)/.exec(r.responseText); v ? ok(v[1]) : fail(new Error('no version in meta')); },
+        onerror: () => fail(new Error('greasyfork unreachable')), ontimeout: () => fail(new Error('greasyfork timed out')),
+    }));
+    const updateBtn = h('button', { textContent: 'update', title: 'check greasyfork for a new version', onclick: async () => {
+        const mine = GM_info.script.version;
+        try {
+            const v = await latest();
+            if (!newer(v, mine)) { updateBtn.textContent = 'update'; return status(`${mine} is the latest`); }
+            status(`installing ${v} | reload instagram after`);
+            GM_openInTab(GM_info.script.downloadURL || META_URL.replace('.meta.js', '.user.js'), { active: true });
+        } catch (e) { status('update check failed: ' + e.message); }
+    } });
+    const checkUpdate = () => latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
+
     root.append(
         h('div', { className: 'bar' },
             h('button', { textContent: 'refresh', onclick: () => run(load) }),
             colSel, typeSel, sortSel, search,
             h('button', { textContent: 'sync to disk', onclick: () => run(sync) }),
             h('button', { textContent: 'log', title: 'write Downloads/reference/hoard-log.json', onclick: () => saveLog().then(() => status('log written to reference/hoard-log.json')) }),
+            updateBtn,
             statusEl,
             h('button', { textContent: '✕', onclick: close })),
         body);
@@ -717,6 +745,7 @@ function main() {
     }
 
     function open() {
+        if (!open.checked) { open.checked = true; checkUpdate(); }
         root.hidden = false;
         document.documentElement.style.overflow = 'hidden';
         render();
