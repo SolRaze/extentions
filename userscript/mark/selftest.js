@@ -74,13 +74,19 @@ _setStore(store);
 assert.deepStrictEqual(effectsOf(['hide', 'foo']), ['hide', 'star']);
 assert.deepStrictEqual(effectsOf(['★', 'clickbait', 'block']), ['star', 'dim']);
 
-// merge: union of tags, deleted utags entries skipped, newer meta wins
+// merge: newer entry wins whole, older loses, newer utags deletion removes, folded keys union
 _setStore(store);
-const n = merge({ data: { a: { tags: ['y'], meta: { title: 'new', updated: 2 } }, b: { tags: ['._DELETED_'] }, c: { tags: ['z'] } } });
+store.data.d = { tags: ['gone'], meta: { updated: 1 } };
+const n = merge({ data: { a: { tags: ['y'], meta: { title: 'new', updated: 2 } }, b: { tags: ['._DELETED_'] }, c: { tags: ['z'] }, d: { tags: ['gone', '._DELETED_'], meta: { updated: 2 } } } });
 assert.strictEqual(n, 2);
-assert.deepStrictEqual(store.data.a.tags, ['x', 'y']);
+assert.deepStrictEqual(store.data.a.tags, ['y'], 'tags removed elsewhere stay removed');
 assert.strictEqual(store.data.a.meta.title, 'new');
 assert.ok(!store.data.b);
+assert.ok(!store.data.d, 'newer utags deletion removes the entry');
+assert.strictEqual(merge({ data: { a: { tags: ['stale'], meta: { updated: 1 } } } }), 0, 'older entry loses');
+assert.deepStrictEqual(store.data.a.tags, ['y']);
+assert.strictEqual(merge({ data: { a: { tags: 'bad' } } }), 0, 'non-array tags skipped');
+assert.deepStrictEqual(store.data.a.tags, ['y']);
 assert.throws(() => merge({ foo: 1 }));
 
 // rename merges onto an existing tag and carries its settings, retag and delete drop empty entries

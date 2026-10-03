@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.4
+// @version      2.5
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -186,18 +186,26 @@ function retag(keys, tag, add) {
 const deleteTag = (t) => { retag(Object.keys(store.data), t, false); delete store.meta.colors?.[t]; delete store.meta.effects?.[t]; commit(); };
 // The key this script builds for a stored url. '@' satisfies x's @handle rule; non-urls stay as they are.
 const rekey = (k) => match(k, '@')?.key || (norm(k) ? 'https://' + norm(k) : k);
-// Merges a utags or mark export, rekeyed: tag lists are unioned, the newer meta wins, tag settings fill gaps.
+// Merges a utags or mark export, rekeyed. Against the store the newer entry wins whole, so removed tags and
+// utags deletions carry over; keys folding together within the export union their tags. Tag settings fill gaps.
 function merge(json) {
     const data = json?.data;
     if (!data || typeof data !== 'object') throw new Error('not a utags or mark export');
     let n = 0;
+    const seen = new Set();
     for (let [key, v] of Object.entries(data)) {
-        const tags = (v?.tags || []).filter(t => typeof t === 'string' && t && t !== DELETED);
-        if ((v?.tags || []).includes(DELETED) || (!tags.length && !v?.meta?.note)) continue;
+        const raw = Array.isArray(v?.tags) ? v.tags : [];
+        const tags = raw.filter(t => typeof t === 'string' && t && t !== DELETED);
         key = rekey(key);
-        const old = store.data[key];
-        const meta = !old || (v.meta?.updated || 0) > (old.meta?.updated || 0) ? v.meta : old.meta;
-        store.data[key] = { tags: [...new Set([...(old?.tags || []), ...tags])], meta: { ...meta } };
+        const old = store.data[key], folded = seen.has(key);
+        const newer = !old || (v?.meta?.updated || 0) > (old.meta?.updated || 0);
+        if (raw.includes(DELETED) || (!tags.length && !v?.meta?.note)) {
+            if (old && newer && !folded) delete store.data[key];
+            continue;
+        }
+        seen.add(key);
+        if (!newer && !folded) continue;
+        store.data[key] = { tags: folded ? [...new Set([...old.tags, ...tags])] : [...new Set(tags)], meta: newer ? { ...old?.meta, ...v.meta } : old.meta };
         n++;
     }
     for (const k of ['colors', 'effects']) if (json.meta?.[k]) store.meta[k] = { ...json.meta[k], ...store.meta[k] };
@@ -241,12 +249,14 @@ function h(tag, props, ...children) {
 }
 const kids = (list) => list.flat(Infinity).filter(k => k != null && k !== false);
 const fill = (el, ...list) => el.replaceChildren(...kids(list));
-const chip = (t, extra) => h('span', { className: 'mark-chip', style: `--h:${hueOf(t)}`, ...extra }, FX_ICON[fxOf(t)] ? `${FX_ICON[fxOf(t)]} ${t}` : t);
+const chip = (t, extra, ...more) => h('span', { className: 'mark-chip', style: `--h:${hueOf(t)}`, ...extra }, FX_ICON[fxOf(t)] ? `${FX_ICON[fxOf(t)]} ${t}` : t, ...more);
 // Pill font from 11px for a tag used once up to 20px for the most used one.
 const pillSize = (n, max) => (11 + 9 * Math.log1p(n) / Math.log1p(Math.max(max, 1))).toFixed(1) + 'px';
 
 // Page pass: chips after tagged links, effect attributes on their list items.
 let site = {}, pageHost = '';
+// Popup menus hold links to the item they were opened on; chips there read as stray tags.
+const MENUS = '[role=menu], [role=listbox], tp-yt-iron-dropdown, ytd-menu-popup-renderer, yt-sheet-view-model';
 const info = new WeakMap(); // link -> { href, m, title, chips, shown }
 let marked = new Set();
 function linkInfo(a) {
@@ -255,28 +265,35 @@ function linkInfo(a) {
         const text = a.textContent.trim();
         const label = text || (site.media && (a.getAttribute('aria-label') || a.querySelector('img[alt]')?.alt || '').trim());
         // Image-only links (avatars, thumbnails) would double every chip, so only text links count unless the site is media.
-        const ok = label && text.length < 300 && !a.closest('.mark-chips') && (site.media || !a.querySelector('img, yt-image'));
+        const ok = label && text.length < 300 && !a.closest(`.mark-chips, ${MENUS}`) && (site.media || !a.querySelector('img, yt-image'));
         i = { href: a.href, m: ok ? linkMatch(a.href, text, pageHost) : null, title: (label || '').slice(0, 160) };
         info.set(a, i);
     }
     return i;
 }
 // Chips for key after el (or inside it, for the page's head); redrawn only when tags, colours or note change.
+// The × on a hovered chip removes that tag from the entry; the rest of the chip opens the editor.
+const unTag = (key, t) => save(key, { tags: tagsOf(key).filter(x => x !== t) });
 function chipsAt(el, i, key, onclick, inside) {
     const own = tagsOf(key), note = store.data[key]?.meta?.note || '';
     const shown = own.map(t => t + hueOf(t) + fxOf(t)).join('\n') + '\n' + note;
     if (i.shown !== shown || (i.chips && !i.chips.isConnected)) {
         i.chips?.remove();
         i.chips = own.length || note ? h('span', { className: 'mark-chips', title: note || null, onclick: (e) => { e.preventDefault(); e.stopPropagation(); onclick(); } },
-            own.map(t => chip(t)), note ? h('span', { className: 'mark-chip note' }, '✎') : null) : null;
+            own.map(t => chip(t, {},
+                h('span', { className: 'mark-x', title: `remove ${t}`, onclick: (e) => { e.preventDefault(); e.stopPropagation(); unTag(key, t); } }, '×'))), note ? h('span', { className: 'mark-chip note' }, '✎') : null) : null;
         if (i.chips) inside ? el.append(i.chips) : el.after(i.chips);
         i.shown = shown;
     }
+    if (i.chips) live.add(i.chips);
     return own;
 }
 const headInfo = new WeakMap();
+// Chips whose link was recycled or dropped by the page; YouTube reuses its list elements for other videos.
+let live = new Set();
 function scan() {
     const items = new Map();
+    live = new Set();
     const head = site.head && document.querySelector(site.head), pm = head && match(location.href, '@');
     if (pm) {
         const i = headInfo.get(head)?.key === pm.key ? headInfo.get(head) : { key: pm.key };
@@ -299,6 +316,7 @@ function scan() {
         if (el.getAttribute('data-mark') !== v) el.setAttribute('data-mark', v);
     }
     marked = new Set(items.keys());
+    for (const c of document.querySelectorAll('.mark-chips')) if (!live.has(c)) c.remove();
 }
 let scanTimer = 0;
 const refresh = () => { if (!scanTimer && typeof document !== 'undefined') scanTimer = setTimeout(() => { scanTimer = 0; scan(); }, 300); };
@@ -308,6 +326,9 @@ const PAGE_CSS = `
 .mark-chip { font: 600 12px/18px system-ui, sans-serif; padding: 0 8px; border-radius: 9px; white-space: nowrap;
     background: hsl(var(--h) 60% 36%); color: #fff; }
 .mark-chip.note { background: #666; }
+.mark-x { display: none; margin-left: 4px; opacity: .7; }
+.mark-x:hover { opacity: 1; }
+.mark-chip:hover .mark-x { display: inline; }
 html:not(.mark-show-hidden) [data-mark~="hide"] { display: none !important; }
 html.mark-show-hidden [data-mark~="hide"] { opacity: .25; }
 [data-mark~="dim"] { opacity: .35; transition: opacity .15s; }
@@ -458,7 +479,7 @@ function openLib() {
     const cloud = h('div', { className: 'cloud' }), tagbar = h('div', { className: 'tagbar' }), list = h('div', { className: 'list' }), foot = h('div', { className: 'foot' });
     const bulkIn = h('input', { placeholder: 'tag', onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') bulk(true); } });
     const file = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none', onchange: async () => {
-        try { msg = `imported ${merge(JSON.parse(await file.files[0].text()))} entries`; } catch (err) { msg = 'import failed: ' + err.message; }
+        try { const json = JSON.parse(await file.files[0].text()); snapshot(); msg = `imported ${merge(json)} entries`; } catch (err) { msg = 'import failed: ' + err.message; }
         file.value = '';
         draw();
     } });

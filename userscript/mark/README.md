@@ -8,7 +8,8 @@ hover a link | 🏷 button beside it | or press t
 editor | applied tags on top | every known tag as a pill, sized by use | click toggles
 typing filters the pills | enter adds typed tag, existing casing reused | tab picks first pill | ⌫ removes last | esc closes
 note field per entry | shown as ✎ chip and chip tooltip
-chips after every tagged link | click opens the editor
+chips after every tagged link | click opens the editor | hover shows × | × removes that tag
+menus and popups never carry chips
 youtube | chips under clamped titles | the watch page title and channel header carry their own tags
 off-site links tag as plain links | same-site links without a rule never
 
@@ -39,6 +40,7 @@ tags from one site show on links to it from another | a github repo on hacker ne
 
 store
 tampermonkey storage `mark.store` | utags shape | a utags export imports here
+import | newer entry wins whole | removed tags and utags deletions carry over | undo reverts it
 meta.colors tag to hue | meta.effects tag to effect | meta.note per entry
 entries kept while they carry a tag or a note | open tabs sync on save
 
