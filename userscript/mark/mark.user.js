@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.5
+// @version      2.6
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -326,9 +326,11 @@ const PAGE_CSS = `
 .mark-chip { font: 600 12px/18px system-ui, sans-serif; padding: 0 8px; border-radius: 9px; white-space: nowrap;
     background: hsl(var(--h) 60% 36%); color: #fff; }
 .mark-chip.note { background: #666; }
-.mark-x { display: none; margin-left: 4px; opacity: .7; }
-.mark-x:hover { opacity: 1; }
-.mark-chip:hover .mark-x { display: inline; }
+.mark-chips .mark-chip { position: relative; }
+.mark-x { display: none; position: absolute; top: -6px; right: -6px; width: 14px; height: 14px; border-radius: 50%;
+    font: 700 11px/14px system-ui, sans-serif; text-align: center; background: #222; color: #fff; box-shadow: 0 0 0 1px #fff4; }
+.mark-x:hover { background: #d33; }
+.mark-chip:hover .mark-x { display: block; }
 html:not(.mark-show-hidden) [data-mark~="hide"] { display: none !important; }
 html.mark-show-hidden [data-mark~="hide"] { opacity: .25; }
 [data-mark~="dim"] { opacity: .35; transition: opacity .15s; }
