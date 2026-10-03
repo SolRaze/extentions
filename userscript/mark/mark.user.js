@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.6
+// @version      2.7
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -323,11 +323,11 @@ const refresh = () => { if (!scanTimer && typeof document !== 'undefined') scanT
 
 const PAGE_CSS = `
 .mark-chips { display: inline-flex; flex-wrap: wrap; gap: 3px; margin: 0 4px; vertical-align: middle; cursor: pointer; }
-.mark-chip { font: 600 12px/18px system-ui, sans-serif; padding: 0 8px; border-radius: 9px; white-space: nowrap;
+.mark-chip { font: 600 12px/18px system-ui, sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap;
     background: hsl(var(--h) 60% 36%); color: #fff; }
 .mark-chip.note { background: #666; }
 .mark-chips .mark-chip { position: relative; }
-.mark-x { display: none; position: absolute; top: -6px; right: -6px; width: 14px; height: 14px; border-radius: 50%;
+.mark-x { display: none; position: absolute; top: -6px; right: -6px; width: 14px; height: 14px; border-radius: 3px;
     font: 700 11px/14px system-ui, sans-serif; text-align: center; background: #222; color: #fff; box-shadow: 0 0 0 1px #fff4; }
 .mark-x:hover { background: #d33; }
 .mark-chip:hover .mark-x { display: block; }
@@ -357,7 +357,7 @@ input:focus, textarea:focus { outline: 1px solid #4b6bfb; }
     border: 1px solid #ffffff1a; border-radius: 12px; box-shadow: 0 12px 40px #0008; }
 .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .type { display: inline-block; min-width: 16px; opacity: .55; margin-right: 6px; text-align: center; }
-.mark-chip { font: 600 11px/18px system-ui, sans-serif; padding: 0 8px; border-radius: 10px; white-space: nowrap; cursor: pointer;
+.mark-chip { font: 600 11px/18px system-ui, sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; cursor: pointer;
     background: hsl(var(--h) 80% 55% / .2); color: hsl(var(--h) 85% 74%); }
 .mark-chip.x::after { content: ' ×'; opacity: .6; }
 .on-row { display: flex; flex-wrap: wrap; gap: 4px; min-height: 18px; }
