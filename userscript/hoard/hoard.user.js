@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.20
+// @version      1.21
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -537,7 +537,7 @@ function main() {
     root.append(
         h('div', { className: 'bar' },
             h('div', { className: 'group act' },
-                h('button', { textContent: 'refresh', title: 'pull the saved feed', onclick: () => run(load) }),
+                h('button', { textContent: 'refresh', title: 'pull the saved feed, then sync to disk', onclick: () => run(refresh) }),
                 h('button', { textContent: 'sync to disk', title: 'download what is not on disk yet', onclick: () => run(sync) })),
             h('div', { className: 'group filters' }, colSel, typeSel, sortSel, search),
             h('div', { className: 'group tools' },
@@ -620,7 +620,7 @@ function main() {
                 // keep what arrived: a partial library still shows and syncs
                 if (items.length) publish(pages.at);
                 throw new Error(is572
-                    ? `572 after ${items.length} posts | likely the feed end, sync now | refresh again in 10 min to confirm`
+                    ? `572 after ${items.length} posts | likely the feed end | refresh again in 10 min to confirm`
                     : `${e.message} after ${items.length} posts, refresh continues from there`);
             }
             log('feed end', { items: items.length, cursor: pages.at });
@@ -628,6 +628,15 @@ function main() {
         const unnamed = publish('');
         log('refresh end', { items: items.length, resumed: !!resume, names: Object.keys(names).length, unnamed });
         if (unnamed) status(`${unnamed} collection names unknown: open instagram.com/<you>/saved/, then refresh`);
+    }
+
+    // Sync straight after the walk, while its cdn links are fresh. A walk that stopped early still
+    // syncs what it loaded; its error leads the status.
+    async function refresh() {
+        let stop;
+        try { await load(); } catch (e) { stop = e; log('error', { task: 'load', error: e.message }); }
+        if (lib?.items.length) await sync();
+        if (stop) status(`${stop.message} · ${status.last}`);
     }
 
     const shown = () => sortItems(filterItems(lib?.items || [], view), view.sort);
