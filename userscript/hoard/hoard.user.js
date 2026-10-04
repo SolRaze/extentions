@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.22
+// @version      1.23
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -553,10 +553,13 @@ function main() {
     async function run(task) {
         if (busy) return status(status.last.split(' · busy')[0] + ' · busy, wait for it to finish');
         busy = true;
+        // display sleep stalls tampermonkey's downloader for good; hold the screen on while busy
+        const wake = await navigator.wakeLock?.request('screen').catch(() => null);
         log('start', { task: task.name, page: location.pathname });
         try { await task(); log('done', { task: task.name, status: status.last }); }
         catch (e) { status('error: ' + e.message); log('error', { task: task.name, error: e.message, stack: e.stack }); }
         busy = false;
+        wake?.release();
         await saveLog();
     }
 
