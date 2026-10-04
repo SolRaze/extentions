@@ -71,7 +71,8 @@ error: not_whitelisted | extension missing from the whitelist above | 1.13 names
 viewer misses .heic photos | instagram serves them as jpeg, browser renames | fixed 1.15 | extension from the served format `stp=dst-<fmt>` | rename .jpeg to .jpg, sync again
 sync fails posts after a refresh that never finished | cdn links expire hours after they load | 1.16 fails them at once, reason shown live | finish a refresh, then sync
 reload mid-refresh lost the whole walk | fixed 1.16 | saved every 25 pages | next refresh within the hour resumes
-sync grinds on, every post 'no response' | display slept mid-sync, tampermonkey's downloader never answered again | 1.22 stops after 3 in a row, 1.23 holds the screen on while busy | restart helium, refresh
+sync grinds on, every post 'no response from the tampermonkey downloader' | display slept mid-sync, tampermonkey's downloader never answered again | 1.22 stops after 3 in a row, 1.23 holds the screen on while busy | restart helium, refresh
+every sync rewrote every sidecar, hours of json downloads, downloader hung | the feed position in each sidecar shifted with every new save | fixed 1.24 | sidecars carry no order, hashes of old ones adopted once, no rewrite
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.23
+// @version      1.24
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -116,8 +116,9 @@ function record(it, media, dirs) {
 }
 
 // <dir>/<user>_<code>.json beside the media; every path in it is relative to the sidecar itself.
+// No feed position: it shifts with every new save and would make every sidecar stale.
 function sidecar(p, colName, pic) {
-    const { media, dirs, cols, taken, ...rest } = p;
+    const { media, dirs, cols, taken, order, side, ...rest } = p;
     return JSON.stringify({
         ...rest,
         taken, datetime: taken ? new Date(taken * 1000).toISOString() : '',
@@ -689,7 +690,7 @@ function main() {
             log('download failed', { name, error: err.message, raw, url: typeof url === 'string' ? url.split('?')[0] : 'blob' });
             reject(err);
         };
-        const t = setTimeout(() => fail(new Error('no response, check tampermonkey download settings')), 60000);
+        const t = setTimeout(() => fail(new Error('no response from the tampermonkey downloader')), 60000);
         GM_download({
             url, name, conflictAction: 'overwrite', onload: () => { clearTimeout(t); ok(); },
             onerror: e => {
@@ -728,6 +729,15 @@ function main() {
         // A post in a collection whose name is unknown waits: its folder name is final once written,
         // and a userscript cannot move files afterwards.
         const names = GM_getValue(NAMES_KEY, {});
+        // archives below sideV 2 hash sidecars that held the feed position; their hashes are adopted
+        // once, so the files keep a stale order field instead of every copy being rewritten
+        if (arc.sideV !== 2) {
+            for (const it of lib.items) {
+                const p = arc.posts[it.code];
+                if (p?.side) p.side = hash(side(entry(it, dirsOf(it, colName), dirsHave(p))));
+            }
+            arc.sideV = 2;
+        }
         const waiting = lib.items.filter(it => it.cols.some(id => !names[id])).length;
         const todo = lib.items.filter(it => it.cols.every(id => names[id]) && due(it));
         let n = 0, failed = 0, fetched = 0, stuck = 0;
