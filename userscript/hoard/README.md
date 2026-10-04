@@ -71,6 +71,7 @@ error: not_whitelisted | extension missing from the whitelist above | 1.13 names
 viewer misses .heic photos | instagram serves them as jpeg, browser renames | fixed 1.15 | extension from the served format `stp=dst-<fmt>` | rename .jpeg to .jpg, sync again
 sync fails posts after a refresh that never finished | cdn links expire hours after they load | 1.16 fails them at once, reason shown live | finish a refresh, then sync
 reload mid-refresh lost the whole walk | fixed 1.16 | saved every 25 pages | next refresh within the hour resumes
+sync grinds on, every post 'no response' | tampermonkey's downloader hangs mid-sync, nothing written after | 1.22 stops after 3 in a row | restart helium, sync again
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 

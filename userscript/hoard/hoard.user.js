@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.21
+// @version      1.22
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -727,7 +727,7 @@ function main() {
         const names = GM_getValue(NAMES_KEY, {});
         const waiting = lib.items.filter(it => it.cols.some(id => !names[id])).length;
         const todo = lib.items.filter(it => it.cols.every(id => names[id]) && due(it));
-        let n = 0, failed = 0, fetched = 0;
+        let n = 0, failed = 0, fetched = 0, stuck = 0;
         log('sync start', { items: lib.items.length, todo: todo.length, waiting, renamed: renamed.length, libAge: Math.round((Date.now() - lib.at) / 60000) + ' min' });
         status(`sync 0/${todo.length}`);
         for (const it of todo) {
@@ -757,11 +757,15 @@ function main() {
                 p.side = hash(json);
                 arc.posts[it.code] = p;
                 GM_setValue(ARC_KEY, arc);
+                stuck = 0;
                 if (missing.length) await sleep(DL_DELAY);
             } catch (e) {
                 failed++;
                 log('post failed', { code: it.code, user: it.user, cols: it.cols, files: it.files.map(f => ({ ext: extOf(f.url), expired: expired(f.url), host: new URL(f.url).host })), error: e.message });
                 if (failed === 1) status.first = e.message;
+                // tampermonkey's downloader hung: every later post would wait out the same 60 s
+                if (e.message.startsWith('no response') && ++stuck === 3)
+                    throw new Error(`downloads stopped answering at ${n}/${todo.length}: restart helium, then sync again`);
                 await sleep(DL_DELAY);
             }
         }
