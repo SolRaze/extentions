@@ -5,8 +5,8 @@ pixeldrain list player | side bars hidden | opening skip
 
 onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill brings the player back
-header | one piece logo left | ☰ hides the list | pace pill far right
-list | arcs only, watched count per arc | one arc open at a time | playing arc opens, highlighted | ✓ watched | right-click toggles watched
+header | one piece left | bare ☰ hides the list | pace far right
+list | arcs only, watched count per arc | one arc open at a time | playing arc opens at the top, highlighted | ✓ watched | right-click toggles watched
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it | download far right
 controls | own seek bar, play, time, mute, pip, fullscreen | hide after 2.5 s idle | click plays, double-click fullscreen
 seek bar | shaded skip ranges | white ticks chapter starts | green ticks the arc's marks
@@ -38,7 +38,6 @@ chapters from the mp4 `chpl` box | last 16 KB of the file | info call for the si
 suffix range `bytes=-N` triggers a cors preflight pixeldrain fails | explicit start-end range only
 most files carry no chapters | newer releases carry an opening chapter | none carry an ending
 volume past 100% routes through web audio | needs the video loaded with crossorigin, pixeldrain sends cors *
-logo font one piece by onlinewebfonts.com, cc by 4.0 | loaded from their cdn into the page, shadow roots ignore @font-face
 pixeldrain next is the player's skip_next button | a redesign renames it, autoplay still native
 
 selftest node selftest.js

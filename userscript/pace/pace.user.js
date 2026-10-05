@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.4
+// @version      1.5
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -198,7 +198,6 @@ function onepace() {
     GM_addStyle(`
         html.pace-on { overflow: hidden !important; }
         html.pace-on body > :not(#pace) { display: none !important; }
-        @font-face { font-family: 'pace-op'; src: url(https://db.onlinewebfonts.com/t/82848488b73a87d72f2436c02b9ab608.woff2) format('woff2'), url(https://db.onlinewebfonts.com/t/82848488b73a87d72f2436c02b9ab608.woff) format('woff'); }
     `);
     const host = document.createElement('div');
     host.id = 'pace';
@@ -212,12 +211,15 @@ function onepace() {
         .app[hidden] { display: none; }
         .app.nolist { grid-template-columns: 1fr; }
         .app.nolist aside { display: none; }
-        aside { overflow-y: auto; border-right: 1px solid #1d2229; }
+        aside { position: relative; overflow-y: auto; border-right: 1px solid #1d2229; }
         header { grid-column: 1 / -1; display: flex; align-items: center; border-bottom: 1px solid #1d2229; background: #12161b; }
         .brand { width: 340px; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-right: 1px solid #1d2229; }
         .app.nolist .brand { width: auto; gap: 16px; border-right: 0; }
-        .logo { font: 22px/1 'pace-op', system-ui, sans-serif; color: #f5c518; letter-spacing: 1px; }
-        header .gear { margin-left: auto; margin-right: 12px; }
+        .logo { font-size: 17px; font-weight: 700; color: #f5c518; letter-spacing: 0.5px; }
+        header button { background: none; border: 0; padding: 4px 6px; color: #8a939e; }
+        header button:hover { color: #fff; }
+        header .side { font-size: 20px; line-height: 1; }
+        header .gear { margin-left: auto; margin-right: 6px; }
         .arc { position: sticky; top: 0; padding: 8px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; margin-left: 6px; }
         .arc.open { color: #fff; }
@@ -249,7 +251,6 @@ function onepace() {
         video:focus, button:focus, a:focus { outline: none; }
         .ov { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); background: #000b; color: #fff; font-size: 2rem; padding: 0.4em 1.4em; border-radius: 1em; pointer-events: none; }
         .ov[hidden] { display: none; }
-        .icon { padding: 4px 10px; }
         .info { padding: 10px 16px; border-top: 1px solid #1d2229; }
         .bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 8px; user-select: none; }
         .bar .mid { grid-column: 2; display: flex; gap: 8px; }
@@ -390,6 +391,7 @@ function onepace() {
         status);
     const side = button('☰', () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); });
     side.title = 'episode list';
+    side.className = 'side';
     gear.className = 'gear';
     const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') },
         el('header', {}, el('div', { className: 'brand' }, el('span', { className: 'logo', textContent: 'One Piece' }), side), gear),
@@ -408,7 +410,6 @@ function onepace() {
                 arcname,
                 title,
                 desc)));
-    for (const b of app.querySelectorAll('header button')) b.classList.add('icon');
     root.addEventListener('click', (e) => {
         if (!settings.hidden && !e.composedPath().some((n) => n === settings || n === gear)) settings.hidden = true;
     });
@@ -465,6 +466,9 @@ function onepace() {
         const row = rows.get(ep.key);
         row.classList.add('cur');
         openArc(ep.arc, true);
+        // The playing arc's header sits at the top of the list; a row further down scrolls into view under it.
+        const h = heads.get(ep.arc);
+        list.scrollTop = h.box.offsetTop - h.head.offsetHeight;
         row.scrollIntoView({ block: 'nearest' });
         const arc = arcs.find((a) => a.slug === ep.arc);
         arcname.textContent = arc.title;
