@@ -4,16 +4,17 @@ one pace player userscript | onepace.net watch page as one list and player | int
 pixeldrain list player | side bars hidden | opening skip
 
 onepace.net/en/watch
-page hidden behind the player | page button shows it | pace pill brings the player back
-list | every arc, every episode | clean titles from the page | arc header collapses | ✓ watched
-player | streams the episode's pixeldrain file | title, description, variant and resolution under it
+page hidden behind the player | tab title one piece | settings show the page | pace pill brings the player back
+list | arcs only, watched count per arc | one arc open at a time | current arc opens | ✓ watched | ☰ hides it
+player | streams the episode's pixeldrain file | title on top | prev, -10s, +10s, next and description under it
+settings | ⚙ pill top right | variant, resolution, cuts, skip, autonext, marks | esc or click outside closes
 variant | english subtitles, dub, dub with closed captions | alternate cuts toggle picks extended or g-8 cut where one exists
 resolution | 1080p, 720p, 480p | nearest carried one when missing
 skip | opening, ending, credits, preview chapters | once per file | seek back replays
 marks | mark intro end, mark outro start | per arc | files without chapters only | clear marks
 autonext | on outro mark, skipped last chapter or end | toggle
 watched | past 90% or finished | first unwatched opens, or the last played
-keys | n next | p previous
+keys | , back 10s | . forward 10s | n next | p previous
 all choices kept in tampermonkey storage
 
 pixeldrain.net/l/ | /u/

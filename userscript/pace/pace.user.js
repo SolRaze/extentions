@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.0
+// @version      1.1
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -171,7 +171,7 @@ function onepace() {
 
     const get = (k, d) => GM_getValue(k, d);
     const set = (k, v) => GM_setValue(k, v);
-    const opt = { variant: get('variant', 'English Subtitles'), res: get('res', '1080p'), alt: get('alt', false), skip: get('skip', true), auto: get('auto', true) };
+    const opt = { variant: get('variant', 'English Subtitles'), res: get('res', '1080p'), alt: get('alt', false), skip: get('skip', true), auto: get('auto', true), list: get('list', true) };
     const watched = get('watched', {}); // episode key -> 1
     const marks = get('marks', {}); // arc slug -> { intro: seconds from start, outro: seconds before end }
     const variants = [...new Set(eps.flatMap((e) => Object.keys(e.src).map((l) => l.split(',')[0].trim())))];
@@ -190,9 +190,12 @@ function onepace() {
         * { box-sizing: border-box; }
         .app { position: fixed; inset: 0; z-index: 2147483646; display: grid; grid-template-columns: 340px 1fr; grid-template-rows: minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 13px/1.4 system-ui, sans-serif; }
         .app[hidden] { display: none; }
+        .app.nolist { grid-template-columns: 1fr; }
+        .app.nolist aside { display: none; }
         aside { overflow-y: auto; border-right: 1px solid #1d2229; }
         .arc { position: sticky; top: 0; padding: 8px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; margin-left: 6px; }
+        .arc.open { color: #fff; }
         .ep { display: flex; gap: 8px; padding: 6px 12px; cursor: pointer; align-items: baseline; }
         .ep:hover { background: #151a20; }
         .ep.cur { background: #1b2733; color: #fff; }
@@ -202,14 +205,20 @@ function onepace() {
         .eps[hidden] { display: none; }
         main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
         video { flex: 1; min-height: 0; width: 100%; background: #000; }
+        .top { display: flex; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid #1d2229; }
+        .top .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .icon { padding: 4px 10px; }
         .info { padding: 10px 16px; border-top: 1px solid #1d2229; }
         .title { font-size: 16px; font-weight: 600; color: #fff; }
         .desc { color: #8a939e; margin-top: 4px; max-width: 90ch; }
-        .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+        .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
         button, select { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
         button:hover, select:hover { border-color: #3d4752; }
         label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
         .note { color: #6b7480; }
+        .settings { position: absolute; right: 12px; top: 44px; z-index: 1; display: grid; gap: 8px; padding: 12px; background: #12161b; border: 1px solid #2a313a; border-radius: 8px; box-shadow: 0 8px 24px #0008; }
+        .settings[hidden] { display: none; }
+        .settings .row { display: flex; gap: 8px; }
         .pill { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646; }
     `;
     root.append(style);
@@ -238,10 +247,20 @@ function onepace() {
 
     const list = el('aside');
     const rows = new Map(); // episode key -> row
+    const heads = new Map(); // arc slug -> { head, box, count, arc }
+    // One arc open at a time; the list reads as arcs only.
+    const openArc = (slug, on) => {
+        for (const [k, h] of heads) {
+            h.box.hidden = !(on && k === slug);
+            h.head.classList.toggle('open', !h.box.hidden);
+        }
+    };
     for (const arc of arcs) {
-        const box = el('div', { className: 'eps' });
-        const head = el('div', { className: 'arc', textContent: arc.title }, el('small', { textContent: `${arc.eps.length}` }));
-        head.onclick = () => { box.hidden = !box.hidden; };
+        const box = el('div', { className: 'eps', hidden: true });
+        const count = el('small');
+        const head = el('div', { className: 'arc', textContent: arc.title }, count);
+        head.onclick = () => openArc(arc.slug, box.hidden);
+        heads.set(arc.slug, { head, box, count, arc });
         for (const ep of arc.eps) {
             const row = el('div', { className: 'ep' }, el('span', { className: 'n', textContent: ep.num }), el('span', { className: 't', textContent: ep.title }));
             row.onclick = () => play(eps.indexOf(ep));
@@ -251,25 +270,43 @@ function onepace() {
         list.append(head, box);
     }
 
-    const app = el('div', { className: 'app' }, list, el('main', {}, video, el('div', { className: 'info' }, title, desc,
-        el('div', { className: 'bar' },
-            button('◀ prev', () => play(cur - 1)),
-            button('next ▶', () => play(cur + 1)),
-            select('variant', variants),
-            select('res', RES),
-            check('alt', 'alternate cuts', true),
-            check('skip', 'skip intro/outro'),
-            check('auto', 'autonext'),
+    const gear = button('⚙ settings', () => { settings.hidden = !settings.hidden; });
+    const seek = (d) => { video.currentTime = Math.min(Math.max(video.currentTime + d, 0), video.duration || 0); };
+    const settings = el('div', { className: 'settings', hidden: true },
+        el('div', { className: 'row' }, select('variant', variants), select('res', RES)),
+        check('alt', 'alternate cuts', true),
+        check('skip', 'skip intro/outro'),
+        check('auto', 'autonext'),
+        el('div', { className: 'row' },
             button('mark intro end', () => mark('intro', video.currentTime)),
             button('mark outro start', () => mark('outro', video.duration - video.currentTime)),
-            button('clear marks', () => mark()),
-            note,
-            button('page', () => show(false)),
-        ))));
+            button('clear marks', () => mark())),
+        note,
+        button('show onepace page', () => show(false)));
+    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') }, list, el('main', {},
+        el('div', { className: 'top' },
+            button('☰', () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); }),
+            title,
+            gear),
+        settings,
+        video,
+        el('div', { className: 'info' },
+            el('div', { className: 'bar' },
+                button('⏮ prev', () => play(cur - 1)),
+                button('−10s', () => seek(-10)),
+                button('+10s', () => seek(10)),
+                button('next ⏭', () => play(cur + 1))),
+            desc)));
+    for (const b of app.querySelectorAll('.top > button')) b.classList.add('icon');
+    root.addEventListener('click', (e) => {
+        if (!settings.hidden && !e.composedPath().some((n) => n === settings || n === gear)) settings.hidden = true;
+    });
     const pill = el('button', { className: 'pill', textContent: 'pace', onclick: () => show(true) });
     root.append(app, pill);
 
+    const pageTitle = document.title;
     const show = (on) => {
+        document.title = on ? 'One Piece' : pageTitle;
         app.hidden = !on;
         pill.hidden = on;
         document.documentElement.classList.toggle('pace-on', on);
@@ -282,6 +319,7 @@ function onepace() {
 
     const paint = () => {
         for (const ep of eps) rows.get(ep.key).classList.toggle('seen', !!watched[ep.key]);
+        for (const h of heads.values()) h.count.textContent = `${h.arc.eps.filter((e) => watched[e.key]).length}/${h.arc.eps.length}`;
         const m = marks[eps[cur]?.arc];
         note.textContent = [ranges.length && `chapters: ${ranges.map((r) => r.title).join(', ')}`,
             m?.intro && `intro ${Math.round(m.intro)}s`, m?.outro && `outro last ${Math.round(m.outro)}s`].filter(Boolean).join(' · ');
@@ -306,7 +344,7 @@ function onepace() {
         set('last', ep.key);
         const row = rows.get(ep.key);
         row.classList.add('cur');
-        row.parentElement.hidden = false;
+        openArc(ep.arc, true);
         row.scrollIntoView({ block: 'nearest' });
         const arc = arcs.find((a) => a.slug === ep.arc);
         title.textContent = `${arc.title} ${ep.num} · ${ep.title}`;
@@ -354,7 +392,10 @@ function onepace() {
     document.addEventListener('keydown', (e) => {
         const t = e.composedPath()[0];
         if (app.hidden || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
-        if (e.key === 'n') play(cur + 1);
+        if (e.key === ',') seek(-10);
+        else if (e.key === '.') seek(10);
+        else if (e.key === 'Escape') settings.hidden = true;
+        else if (e.key === 'n') play(cur + 1);
         else if (e.key === 'p') play(cur - 1);
     });
 
