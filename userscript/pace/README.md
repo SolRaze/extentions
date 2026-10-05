@@ -5,8 +5,12 @@ pixeldrain list player | side bars hidden | opening skip
 
 onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill brings the player back
-list | arcs only, watched count per arc | one arc open at a time | current arc opens | ✓ watched | ☰ at its bottom hides it
-player | streams the episode's pixeldrain file | title on top | prev, -10s, +10s, next and description under it
+header | one piece logo left | ☰ hides the list | pace pill far right
+list | arcs only, watched count per arc | one arc open at a time | playing arc opens, highlighted | ✓ watched
+player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it | download far right
+info | arc | episode number and title | description
+gestures | wheel over left 30% brightness | right 30% volume to 200% | readout over the video
+focus | buttons never take focus | no ring on the player after a seek
 settings | pace pill top right | variant, resolution, cuts, skip, autonext, marks | esc or click outside closes
 update | settings button | checks greasyfork meta | installs through tampermonkey | pill shows • when newer
 variant | english subtitles, dub, dub with closed captions | alternate cuts toggle picks extended or g-8 cut where one exists
@@ -28,6 +32,8 @@ links without a resolution are all-in-one files | skipped
 chapters from the mp4 `chpl` box | last 16 KB of the file | info call for the size, then a range request
 suffix range `bytes=-N` triggers a cors preflight pixeldrain fails | explicit start-end range only
 most files carry no chapters | newer releases carry an opening chapter | none carry an ending
+volume past 100% routes through web audio | needs the video loaded with crossorigin, pixeldrain sends cors *
+logo font one piece by onlinewebfonts.com, cc by 4.0 | loaded from their cdn into the page, shadow roots ignore @font-face
 pixeldrain next is the player's skip_next button | a redesign renames it, autoplay still native
 
 selftest node selftest.js

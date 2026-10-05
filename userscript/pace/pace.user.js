@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.2
+// @version      1.3
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -197,6 +197,7 @@ function onepace() {
     GM_addStyle(`
         html.pace-on { overflow: hidden !important; }
         html.pace-on body > :not(#pace) { display: none !important; }
+        @font-face { font-family: 'pace-op'; src: url(https://db.onlinewebfonts.com/t/82848488b73a87d72f2436c02b9ab608.woff2) format('woff2'), url(https://db.onlinewebfonts.com/t/82848488b73a87d72f2436c02b9ab608.woff) format('woff'); }
     `);
     const host = document.createElement('div');
     host.id = 'pace';
@@ -206,16 +207,20 @@ function onepace() {
     style.textContent = `
         :host { all: initial; }
         * { box-sizing: border-box; }
-        .app { position: fixed; inset: 0; z-index: 2147483646; display: grid; grid-template-columns: 340px 1fr; grid-template-rows: minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 13px/1.4 system-ui, sans-serif; }
+        .app { position: fixed; inset: 0; z-index: 2147483646; display: grid; grid-template-columns: 340px 1fr; grid-template-rows: auto minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 13px/1.4 system-ui, sans-serif; }
         .app[hidden] { display: none; }
         .app.nolist { grid-template-columns: 1fr; }
         .app.nolist aside { display: none; }
-        aside { overflow-y: auto; border-right: 1px solid #1d2229; padding-bottom: 36px; }
-        .side { position: absolute; left: 0; bottom: 0; z-index: 1; width: 340px; text-align: left; padding: 8px 12px; background: #12161b; border: 0; border-top: 1px solid #1d2229; border-right: 1px solid #1d2229; border-radius: 0; }
-        .app.nolist .side { width: auto; left: 12px; bottom: 12px; border: 1px solid #2a313a; border-radius: 6px; }
+        aside { overflow-y: auto; border-right: 1px solid #1d2229; }
+        header { grid-column: 1 / -1; display: flex; align-items: center; border-bottom: 1px solid #1d2229; background: #12161b; }
+        .brand { width: 340px; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-right: 1px solid #1d2229; }
+        .app.nolist .brand { width: auto; gap: 16px; border-right: 0; }
+        .logo { font: 22px/1 'pace-op', system-ui, sans-serif; color: #f5c518; letter-spacing: 1px; }
+        header .gear { margin-left: auto; margin-right: 12px; }
         .arc { position: sticky; top: 0; padding: 8px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; margin-left: 6px; }
         .arc.open { color: #fff; }
+        .arc.cur { color: #f5c518; box-shadow: inset 3px 0 #f5c518; }
         .ep { display: flex; gap: 8px; padding: 6px 12px; cursor: pointer; align-items: baseline; }
         .ep:hover { background: #151a20; }
         .ep.cur { background: #1b2733; color: #fff; }
@@ -224,19 +229,24 @@ function onepace() {
         .ep.seen .n::after { content: ' ✓'; color: #4caf50; }
         .eps[hidden] { display: none; }
         main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-        video { flex: 1; min-height: 0; width: 100%; background: #000; }
-        .top { display: flex; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid #1d2229; }
-        .top .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stage { position: relative; flex: 1; min-height: 0; background: #000; }
+        video { width: 100%; height: 100%; display: block; }
+        video:focus, button:focus, a:focus { outline: none; }
+        .ov { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); background: #000b; color: #fff; font-size: 2rem; padding: 0.4em 1.4em; border-radius: 1em; pointer-events: none; }
+        .ov[hidden] { display: none; }
         .icon { padding: 4px 10px; }
         .info { padding: 10px 16px; border-top: 1px solid #1d2229; }
+        .bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 8px; user-select: none; }
+        .bar .mid { grid-column: 2; display: flex; gap: 8px; }
+        .bar .dl { grid-column: 3; justify-self: end; text-decoration: none; }
+        .arcname { color: #6b7480; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
         .title { font-size: 16px; font-weight: 600; color: #fff; }
         .desc { color: #8a939e; margin-top: 4px; max-width: 90ch; }
-        .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
-        button, select { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
-        button:hover, select:hover { border-color: #3d4752; }
+        button, select, .dl { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+        button:hover, select:hover, .dl:hover { border-color: #3d4752; }
         label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
         .note { color: #6b7480; }
-        .settings { position: absolute; right: 12px; top: 44px; z-index: 1; display: grid; gap: 8px; padding: 12px; background: #12161b; border: 1px solid #2a313a; border-radius: 8px; box-shadow: 0 8px 24px #0008; }
+        .settings { position: absolute; right: 12px; top: 48px; z-index: 1; display: grid; gap: 8px; padding: 12px; background: #12161b; border: 1px solid #2a313a; border-radius: 8px; box-shadow: 0 8px 24px #0008; }
         .settings[hidden] { display: none; }
         .settings .row { display: flex; gap: 8px; }
         .pill { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646; }
@@ -249,7 +259,10 @@ function onepace() {
         return n;
     };
 
-    const video = el('video', { controls: true, playsInline: true });
+    const video = el('video', { controls: true, playsInline: true, crossOrigin: 'anonymous' });
+    const ov = el('div', { className: 'ov', hidden: true });
+    const arcname = el('div', { className: 'arcname' });
+    const dl = el('a', { className: 'dl', textContent: '↓ download', title: 'download this file' });
     const title = el('div', { className: 'title' });
     const desc = el('div', { className: 'desc' });
     const note = el('span', { className: 'note' });
@@ -263,7 +276,8 @@ function onepace() {
         c.onchange = () => { opt[key] = c.checked; set(key, c.checked); if (live) play(cur, video.currentTime); };
         return el('label', {}, c, text);
     };
-    const button = (text, fn) => el('button', { textContent: text, onclick: fn });
+    // mousedown default would move focus onto the button and leave a ring after the click.
+    const button = (text, fn) => el('button', { textContent: text, onclick: fn, onmousedown: (e) => e.preventDefault() });
 
     const list = el('aside');
     const rows = new Map(); // episode key -> row
@@ -316,23 +330,27 @@ function onepace() {
         note,
         el('div', { className: 'row' }, updateBtn, button('show onepace page', () => show(false))),
         status);
-    // Sits at the bottom of the list, and in the same corner over the player while the list is hidden.
-    const side = el('button', { className: 'side', textContent: '☰', title: 'episode list',
-        onclick: () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); } });
-    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') }, list, side, el('main', {},
-        el('div', { className: 'top' },
-            title,
-            gear),
-        settings,
-        video,
-        el('div', { className: 'info' },
-            el('div', { className: 'bar' },
-                button('⏮ prev', () => play(cur - 1)),
-                button('−10s', () => seek(-10)),
-                button('+10s', () => seek(10)),
-                button('next ⏭', () => play(cur + 1))),
-            desc)));
-    for (const b of app.querySelectorAll('.top > button')) b.classList.add('icon');
+    const side = button('☰', () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); });
+    side.title = 'episode list';
+    gear.className = 'gear';
+    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') },
+        el('header', {}, el('div', { className: 'brand' }, el('span', { className: 'logo', textContent: 'One Piece' }), side), gear),
+        list,
+        el('main', {},
+            settings,
+            el('div', { className: 'stage' }, video, ov),
+            el('div', { className: 'info' },
+                el('div', { className: 'bar' },
+                    el('div', { className: 'mid' },
+                        button('⏮ prev', () => play(cur - 1)),
+                        button('−10s', () => seek(-10)),
+                        button('+10s', () => seek(10)),
+                        button('next ⏭', () => play(cur + 1))),
+                    dl),
+                arcname,
+                title,
+                desc)));
+    for (const b of app.querySelectorAll('header button')) b.classList.add('icon');
     root.addEventListener('click', (e) => {
         if (!settings.hidden && !e.composedPath().some((n) => n === settings || n === gear)) settings.hidden = true;
     });
@@ -380,6 +398,8 @@ function onepace() {
         if (!s) return;
         if (i !== cur) at = 0;
         rows.get(eps[cur]?.key)?.classList.remove('cur');
+        heads.get(eps[cur]?.arc)?.head.classList.remove('cur');
+        heads.get(ep.arc).head.classList.add('cur');
         cur = i;
         set('last', ep.key);
         const row = rows.get(ep.key);
@@ -387,7 +407,9 @@ function onepace() {
         openArc(ep.arc, true);
         row.scrollIntoView({ block: 'nearest' });
         const arc = arcs.find((a) => a.slug === ep.arc);
-        title.textContent = `${arc.title} ${ep.num} · ${ep.title}`;
+        arcname.textContent = arc.title;
+        title.textContent = `${ep.num} · ${ep.title}`;
+        dl.href = `https://pixeldrain.net/api/file/${s.id}?download`;
         desc.textContent = `${ep.desc}  [${s.label} · ${s.res}]`;
         ranges = [];
         done = new Set();
@@ -428,6 +450,43 @@ function onepace() {
         if (m.outro && t >= d - m.outro && !done.has('outro')) { done.add('outro'); finish(); if (opt.auto) play(cur + 1); }
     });
     video.addEventListener('ended', () => { finish(); if (opt.auto) play(cur + 1); });
+
+    // Wheel over the video's outer 30% bands: left brightness, right volume up to 200%.
+    // Gain above 100% routes the element through Web Audio, wired only once boost is asked for.
+    let audio, gain, ovTimer;
+    const overlay = (text) => {
+        ov.textContent = text;
+        ov.hidden = false;
+        clearTimeout(ovTimer);
+        ovTimer = setTimeout(() => { ov.hidden = true; }, 800);
+    };
+    video.addEventListener('wheel', (e) => {
+        if (e.ctrlKey) return;
+        const r = video.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width;
+        if (x > 0.3 && x < 0.7) return;
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 5 : -5;
+        if (x < 0.3) {
+            const b = parseFloat(video.style.filter.match(/brightness\(([^)]+)\)/)?.[1] || 1);
+            const next = Math.max(0.1, Math.min(1, b + delta / 100));
+            video.style.filter = next < 1 ? `brightness(${next})` : '';
+            return overlay(`Brightness ${Math.round(next * 100)}%`);
+        }
+        const now = video.muted ? 0 : video.volume * 100 * (gain ? gain.gain.value : 1);
+        const next = Math.max(0, Math.min(200, Math.round(now + delta)));
+        video.volume = Math.min(100, next) / 100;
+        if (next > 0) video.muted = false;
+        if (next > 100 && !gain) {
+            audio = new AudioContext();
+            gain = audio.createGain();
+            audio.createMediaElementSource(video).connect(gain).connect(audio.destination);
+        }
+        if (gain) { gain.gain.value = Math.max(1, next / 100); audio.resume(); }
+        overlay(`Volume ${next}%`);
+    }, { passive: false });
+    // A context created outside a user activation starts suspended and silences the element.
+    video.addEventListener('play', () => audio?.resume());
 
     document.addEventListener('keydown', (e) => {
         const t = e.composedPath()[0];
