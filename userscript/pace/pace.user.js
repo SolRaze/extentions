@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.1
+// @version      1.2
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -17,6 +17,10 @@
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
+// @grant        GM_info
+// @connect      greasyfork.org
 // @downloadURL https://update.greasyfork.org/scripts/598867/pace.user.js
 // @updateURL https://update.greasyfork.org/scripts/598867/pace.meta.js
 // ==/UserScript==
@@ -75,6 +79,20 @@ function pickSource(src, variant, res, alt) {
 
 // An explicit start-end range: a suffix range (bytes=-N) is not CORS-safelisted, and pixeldrain
 // fails the preflight it triggers from onepace.net.
+// Dotted versions compared numerically: 2.10 is newer than 2.9.
+const newer = (a, b) => {
+    const x = a.split('.').map(Number), y = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+    return false;
+};
+// Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.
+const META_URL = 'https://update.greasyfork.org/scripts/598867/pace.meta.js';
+const latest = () => new Promise((ok, fail) => GM_xmlhttpRequest({
+    method: 'GET', url: META_URL + '?t=' + Date.now(), timeout: 15000,
+    onload: (r) => { const v = /@version\s+(\S+)/.exec(r.responseText); v ? ok(v[1]) : fail(new Error('no version in meta')); },
+    onerror: () => fail(new Error('greasyfork unreachable')), ontimeout: () => fail(new Error('greasyfork timed out')),
+}));
+
 async function loadChapters(id) {
     try {
         const { size } = await (await fetch(`https://pixeldrain.net/api/file/${id}/info`)).json();
@@ -121,7 +139,7 @@ function scrape(doc) {
     return arcs.filter((a) => a.eps.length);
 }
 
-if (typeof module !== 'undefined') module.exports = { parseChpl, skipRanges, pickSource, scrape };
+if (typeof module !== 'undefined') module.exports = { parseChpl, skipRanges, pickSource, scrape, newer };
 
 // pixeldrain list player: side bars hidden, chapters skipped, playback kept going between files.
 function pixeldrain() {
@@ -192,7 +210,9 @@ function onepace() {
         .app[hidden] { display: none; }
         .app.nolist { grid-template-columns: 1fr; }
         .app.nolist aside { display: none; }
-        aside { overflow-y: auto; border-right: 1px solid #1d2229; }
+        aside { overflow-y: auto; border-right: 1px solid #1d2229; padding-bottom: 36px; }
+        .side { position: absolute; left: 0; bottom: 0; z-index: 1; width: 340px; text-align: left; padding: 8px 12px; background: #12161b; border: 0; border-top: 1px solid #1d2229; border-right: 1px solid #1d2229; border-radius: 0; }
+        .app.nolist .side { width: auto; left: 12px; bottom: 12px; border: 1px solid #2a313a; border-radius: 6px; }
         .arc { position: sticky; top: 0; padding: 8px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; margin-left: 6px; }
         .arc.open { color: #fff; }
@@ -270,7 +290,19 @@ function onepace() {
         list.append(head, box);
     }
 
-    const gear = button('⚙ settings', () => { settings.hidden = !settings.hidden; });
+    const status = el('span', { className: 'note' });
+    const updateBtn = button('update', async () => {
+        const mine = GM_info.script.version;
+        try {
+            const v = await latest();
+            if (!newer(v, mine)) { updateBtn.textContent = 'update'; status.textContent = `${mine} is the latest`; return; }
+            status.textContent = `installing ${v} | reload the page after`;
+            GM_openInTab(GM_info.script.downloadURL || META_URL.replace('.meta.js', '.user.js'), { active: true });
+        } catch (e) { status.textContent = 'update check failed: ' + e.message; }
+    });
+    updateBtn.title = 'check greasyfork for a new version';
+    latest().then((v) => { if (newer(v, GM_info.script.version)) { updateBtn.textContent = `update ${v}`; gear.textContent = 'pace •'; } }).catch(() => {});
+    const gear = button('pace', () => { settings.hidden = !settings.hidden; });
     const seek = (d) => { video.currentTime = Math.min(Math.max(video.currentTime + d, 0), video.duration || 0); };
     const settings = el('div', { className: 'settings', hidden: true },
         el('div', { className: 'row' }, select('variant', variants), select('res', RES)),
@@ -282,10 +314,13 @@ function onepace() {
             button('mark outro start', () => mark('outro', video.duration - video.currentTime)),
             button('clear marks', () => mark())),
         note,
-        button('show onepace page', () => show(false)));
-    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') }, list, el('main', {},
+        el('div', { className: 'row' }, updateBtn, button('show onepace page', () => show(false))),
+        status);
+    // Sits at the bottom of the list, and in the same corner over the player while the list is hidden.
+    const side = el('button', { className: 'side', textContent: '☰', title: 'episode list',
+        onclick: () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); } });
+    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') }, list, side, el('main', {},
         el('div', { className: 'top' },
-            button('☰', () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); }),
             title,
             gear),
         settings,
@@ -304,9 +339,14 @@ function onepace() {
     const pill = el('button', { className: 'pill', textContent: 'pace', onclick: () => show(true) });
     root.append(app, pill);
 
+    // The page's router rewrites <title> after load, so the tab title is held while the player shows.
+    const TITLE = 'One Piece';
     const pageTitle = document.title;
+    new MutationObserver(() => {
+        if (!app.hidden && document.title !== TITLE) document.title = TITLE;
+    }).observe(document.head, { childList: true, subtree: true, characterData: true });
     const show = (on) => {
-        document.title = on ? 'One Piece' : pageTitle;
+        document.title = on ? TITLE : pageTitle;
         app.hidden = !on;
         pill.hidden = on;
         document.documentElement.classList.toggle('pace-on', on);

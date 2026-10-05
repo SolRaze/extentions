@@ -1,7 +1,7 @@
-// Self-check for pace.user.js: chapter parsing, skip ranges and source picking.
+// Self-check for pace.user.js: chapter parsing, skip ranges, source picking and version compare.
 // Run: node selftest.js
 const assert = require('assert');
-const { parseChpl, skipRanges, pickSource } = require('./pace.user.js');
+const { parseChpl, skipRanges, pickSource, newer } = require('./pace.user.js');
 
 // chpl v1 as muxed in One Pace files, behind padding as in a file tail
 const title = (s) => [s.length, ...Buffer.from(s)];
@@ -39,5 +39,10 @@ assert.strictEqual(pickSource(src, 'English Subtitles', '480p', true).id, 'c', '
 assert.strictEqual(pickSource(src, 'English Dub', '1080p', true).id, 'd', 'no cut for this variant: plain one');
 assert.strictEqual(pickSource(src, 'English Dub with Closed Captions', '480p', false).label, 'English Subtitles', 'variant missing: first label');
 assert.strictEqual(pickSource({}, 'English Dub', '720p', false), null);
+
+// newer: numeric per dotted part
+assert.strictEqual(newer('1.10', '1.9'), true);
+assert.strictEqual(newer('1.2', '1.2'), false);
+assert.strictEqual(newer('1.2', '1.2.1'), false);
 
 console.log('ok');
