@@ -6,8 +6,12 @@ pixeldrain list player | side bars hidden | opening skip
 onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill brings the player back
 header | one piece logo left | ☰ hides the list | pace pill far right
-list | arcs only, watched count per arc | one arc open at a time | playing arc opens, highlighted | ✓ watched
+list | arcs only, watched count per arc | one arc open at a time | playing arc opens, highlighted | ✓ watched | right-click toggles watched
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it | download far right
+controls | own seek bar, play, time, mute, pip, fullscreen | hide after 2.5 s idle | click plays, double-click fullscreen
+seek bar | shaded skip ranges | white ticks chapter starts | green ticks the arc's marks
+skip intro | button over the video when auto skip did not take it | chapter or mark with skip off | unknown intro jumps 90 s, first 3 min only
+resume | each episode reopens where it stopped | dropped once watched
 info | arc | episode number and title | description
 gestures | wheel over left 30% brightness | right 30% volume to 200% | readout over the video
 focus | buttons never take focus | no ring on the player after a seek
@@ -19,7 +23,8 @@ skip | opening, ending, credits, preview chapters | once per file | seek back re
 marks | mark intro end, mark outro start | per arc | files without chapters only | clear marks
 autonext | on outro mark, skipped last chapter or end | toggle
 watched | past 90% or finished | first unwatched opens, or the last played
-keys | , back 10s | . forward 10s | n next | p previous
+export, import | settings | watched, marks, resume as pace.json | import merges
+keys | , back 10s | . forward 10s | n next | p previous | k or space play | f fullscreen | m mute
 all choices kept in tampermonkey storage
 
 pixeldrain.net/l/ | /u/

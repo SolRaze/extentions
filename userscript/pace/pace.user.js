@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.3
+// @version      1.4
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -191,6 +191,7 @@ function onepace() {
     const set = (k, v) => GM_setValue(k, v);
     const opt = { variant: get('variant', 'English Subtitles'), res: get('res', '1080p'), alt: get('alt', false), skip: get('skip', true), auto: get('auto', true), list: get('list', true) };
     const watched = get('watched', {}); // episode key -> 1
+    const pos = get('pos', {}); // episode key -> resume seconds, dropped once watched
     const marks = get('marks', {}); // arc slug -> { intro: seconds from start, outro: seconds before end }
     const variants = [...new Set(eps.flatMap((e) => Object.keys(e.src).map((l) => l.split(',')[0].trim())))];
 
@@ -230,7 +231,21 @@ function onepace() {
         .eps[hidden] { display: none; }
         main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
         .stage { position: relative; flex: 1; min-height: 0; background: #000; }
-        video { width: 100%; height: 100%; display: block; }
+        video { width: 100%; height: 100%; display: block; cursor: pointer; }
+        .stage.idle, .stage.idle video { cursor: none; }
+        .ctl { position: absolute; left: 0; right: 0; bottom: 0; padding: 28px 12px 10px; background: linear-gradient(transparent, #000c); transition: opacity 0.2s; user-select: none; }
+        .stage.idle .ctl { opacity: 0; }
+        .track { position: relative; height: 6px; margin-bottom: 10px; background: #fff3; border-radius: 3px; cursor: pointer; }
+        .track::before { content: ''; position: absolute; inset: -8px 0; }
+        .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #f5c518; border-radius: 3px; pointer-events: none; }
+        .zone { position: absolute; top: 0; bottom: 0; background: #fff5; pointer-events: none; }
+        .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; pointer-events: none; }
+        .tick.mark { background: #4caf50; }
+        .crow { display: flex; gap: 8px; align-items: center; color: #fff; }
+        .crow .time { margin-right: auto; font-variant-numeric: tabular-nums; }
+        .crow button, .skipi { background: #0009; border-color: #fff3; color: #fff; }
+        .skipi { position: absolute; right: 16px; bottom: 84px; padding: 8px 14px; }
+        .skipi[hidden], .crow [hidden] { display: none; }
         video:focus, button:focus, a:focus { outline: none; }
         .ov { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); background: #000b; color: #fff; font-size: 2rem; padding: 0.4em 1.4em; border-radius: 1em; pointer-events: none; }
         .ov[hidden] { display: none; }
@@ -259,7 +274,7 @@ function onepace() {
         return n;
     };
 
-    const video = el('video', { controls: true, playsInline: true, crossOrigin: 'anonymous' });
+    const video = el('video', { playsInline: true, crossOrigin: 'anonymous' });
     const ov = el('div', { className: 'ov', hidden: true });
     const arcname = el('div', { className: 'arcname' });
     const dl = el('a', { className: 'dl', textContent: '↓ download', title: 'download this file' });
@@ -278,6 +293,22 @@ function onepace() {
     };
     // mousedown default would move focus onto the button and leave a ring after the click.
     const button = (text, fn) => el('button', { textContent: text, onclick: fn, onmousedown: (e) => e.preventDefault() });
+
+    const fill = el('div', { className: 'fill' });
+    const ticks = el('div');
+    const track = el('div', { className: 'track' }, ticks, fill);
+    const time = el('span', { className: 'time' });
+    const playBtn = button('▶', () => (video.paused ? video.play() : video.pause()));
+    const volBtn = button('vol 100%', () => { video.muted = !video.muted; });
+    const pipBtn = button('pip', () => (document.pictureInPictureElement ? document.exitPictureInPicture() : video.requestPictureInPicture()).catch(() => {}));
+    pipBtn.hidden = !document.pictureInPictureEnabled;
+    const fullBtn = button('full', () => full());
+    const skipi = button('skip intro', () => { const to = skipTarget(); done.add('intro'); if (to != null) video.currentTime = to; });
+    skipi.className = 'skipi';
+    skipi.hidden = true;
+    const stage = el('div', { className: 'stage' }, video, ov, skipi,
+        el('div', { className: 'ctl' }, track, el('div', { className: 'crow' }, playBtn, time, volBtn, pipBtn, fullBtn)));
+    const full = () => (document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen()).catch(() => {});
 
     const list = el('aside');
     const rows = new Map(); // episode key -> row
@@ -298,6 +329,13 @@ function onepace() {
         for (const ep of arc.eps) {
             const row = el('div', { className: 'ep' }, el('span', { className: 'n', textContent: ep.num }), el('span', { className: 't', textContent: ep.title }));
             row.onclick = () => play(eps.indexOf(ep));
+            row.oncontextmenu = (e) => {
+                e.preventDefault();
+                if (watched[ep.key]) delete watched[ep.key];
+                else watched[ep.key] = 1;
+                set('watched', watched);
+                paint();
+            };
             rows.set(ep.key, row);
             box.append(row);
         }
@@ -316,6 +354,25 @@ function onepace() {
     });
     updateBtn.title = 'check greasyfork for a new version';
     latest().then((v) => { if (newer(v, GM_info.script.version)) { updateBtn.textContent = `update ${v}`; gear.textContent = 'pace •'; } }).catch(() => {});
+    const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
+    const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+    file.onchange = async () => {
+        try {
+            const d = obj(JSON.parse(await file.files[0].text()));
+            Object.assign(watched, obj(d.watched));
+            Object.assign(marks, obj(d.marks));
+            Object.assign(pos, obj(d.pos));
+            set('watched', watched); set('marks', marks); set('pos', pos);
+            paint();
+            status.textContent = 'imported';
+        } catch (e) { status.textContent = 'import failed: ' + e.message; }
+        file.value = '';
+    };
+    const exportBtn = button('export', () => {
+        const a = el('a', { download: 'pace.json', href: URL.createObjectURL(new Blob([JSON.stringify({ watched, marks, pos })], { type: 'application/json' })) });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
     const gear = button('pace', () => { settings.hidden = !settings.hidden; });
     const seek = (d) => { video.currentTime = Math.min(Math.max(video.currentTime + d, 0), video.duration || 0); };
     const settings = el('div', { className: 'settings', hidden: true },
@@ -328,6 +385,7 @@ function onepace() {
             button('mark outro start', () => mark('outro', video.duration - video.currentTime)),
             button('clear marks', () => mark())),
         note,
+        el('div', { className: 'row' }, exportBtn, button('import', () => file.click()), file),
         el('div', { className: 'row' }, updateBtn, button('show onepace page', () => show(false))),
         status);
     const side = button('☰', () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); });
@@ -338,7 +396,7 @@ function onepace() {
         list,
         el('main', {},
             settings,
-            el('div', { className: 'stage' }, video, ov),
+            stage,
             el('div', { className: 'info' },
                 el('div', { className: 'bar' },
                     el('div', { className: 'mid' },
@@ -373,12 +431,14 @@ function onepace() {
 
     let cur = -1;
     let ranges = [];
+    let chapters = [];
     let done = new Set(); // per-file: 'intro', 'outro', chapter ranges
 
     const paint = () => {
         for (const ep of eps) rows.get(ep.key).classList.toggle('seen', !!watched[ep.key]);
         for (const h of heads.values()) h.count.textContent = `${h.arc.eps.filter((e) => watched[e.key]).length}/${h.arc.eps.length}`;
         const m = marks[eps[cur]?.arc];
+        drawTicks();
         note.textContent = [ranges.length && `chapters: ${ranges.map((r) => r.title).join(', ')}`,
             m?.intro && `intro ${Math.round(m.intro)}s`, m?.outro && `outro last ${Math.round(m.outro)}s`].filter(Boolean).join(' · ');
     };
@@ -396,7 +456,7 @@ function onepace() {
         const ep = eps[i];
         const s = pickSource(ep.src, opt.variant, opt.res, opt.alt);
         if (!s) return;
-        if (i !== cur) at = 0;
+        if (i !== cur) at = pos[ep.key] || 0;
         rows.get(eps[cur]?.key)?.classList.remove('cur');
         heads.get(eps[cur]?.arc)?.head.classList.remove('cur');
         heads.get(ep.arc).head.classList.add('cur');
@@ -412,13 +472,15 @@ function onepace() {
         dl.href = `https://pixeldrain.net/api/file/${s.id}?download`;
         desc.textContent = `${ep.desc}  [${s.label} · ${s.res}]`;
         ranges = [];
+        chapters = [];
         done = new Set();
         video.src = `https://pixeldrain.net/api/file/${s.id}`;
         video.currentTime = at;
         if (go) video.play().catch(() => {});
         paint();
-        const chapters = await loadChapters(s.id);
+        const chaps = await loadChapters(s.id);
         if (cur !== i) return;
+        chapters = chaps;
         const apply = () => { ranges = skipRanges(chapters, video.duration); paint(); };
         if (video.duration) apply();
         else video.addEventListener('loadedmetadata', apply, { once: true });
@@ -426,6 +488,7 @@ function onepace() {
 
     const finish = () => {
         const key = eps[cur].key;
+        if (pos[key]) { delete pos[key]; set('pos', pos); }
         if (!watched[key]) { watched[key] = 1; set('watched', watched); paint(); }
     };
 
@@ -435,7 +498,9 @@ function onepace() {
         const t = video.currentTime;
         const d = video.duration;
         if (!d) return;
+        const key = eps[cur].key;
         if (t > d * 0.9) finish();
+        else if (Math.abs(t - (pos[key] || 0)) >= 5) { pos[key] = Math.floor(t); set('pos', pos); }
         if (!opt.skip) return;
         for (const r of ranges) {
             if (t < r.start || t >= r.end || done.has(r)) continue;
@@ -484,9 +549,74 @@ function onepace() {
         }
         if (gain) { gain.gain.value = Math.max(1, next / 100); audio.resume(); }
         overlay(`Volume ${next}%`);
+        volText();
     }, { passive: false });
     // A context created outside a user activation starts suspended and silences the element.
     video.addEventListener('play', () => audio?.resume());
+
+    const volText = () => { volBtn.textContent = video.muted ? 'muted' : `vol ${Math.round(video.volume * 100 * (gain ? gain.gain.value : 1))}%`; };
+    video.addEventListener('volumechange', volText);
+    const fmt = (sec) => {
+        const n = Math.floor(sec || 0);
+        const m = Math.floor(n / 60) % 60;
+        const ss = String(n % 60).padStart(2, '0');
+        return n >= 3600 ? `${Math.floor(n / 3600)}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+    };
+    // Shown over intro time the auto skip did not take: a chapter or mark while skip is off,
+    // or, with neither known, the first three minutes, where it jumps a typical opening's length.
+    const GUESS = 90;
+    function skipTarget() {
+        const t = video.currentTime;
+        const d = video.duration;
+        if (!d || cur < 0) return null;
+        const r = ranges.find((x) => t >= x.start && t < x.end && x.end < d - 1);
+        if (r) return r.end;
+        const m = marks[eps[cur].arc] || {};
+        if (ranges.length) return null;
+        if (m.intro) return t < m.intro ? m.intro : null;
+        return t < 180 && !done.has('intro') ? Math.min(t + GUESS, d) : null;
+    }
+    const progress = () => {
+        fill.style.width = `${(video.currentTime / video.duration || 0) * 100}%`;
+        time.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
+        skipi.hidden = skipTarget() == null;
+    };
+    for (const ev of ['timeupdate', 'durationchange', 'seeking', 'emptied']) video.addEventListener(ev, progress);
+    video.addEventListener('loadedmetadata', drawTicks);
+    // Shaded zones are skip ranges, white ticks chapter starts, green ticks the arc's marks.
+    function drawTicks() {
+        ticks.replaceChildren();
+        const d = video.duration;
+        if (!d || cur < 0) return;
+        const at = (cls, a, b) => ticks.append(el('div', { className: cls, style: `left:${(a / d) * 100}%` + (b == null ? '' : `;width:${((b - a) / d) * 100}%`) }));
+        for (const r of ranges) at('zone', r.start, r.end);
+        for (const c of chapters) if (c.start > 0) at('tick', c.start);
+        const m = marks[eps[cur].arc] || {};
+        if (!ranges.length && m.intro) at('zone', 0, m.intro);
+        if (!ranges.length && m.outro) at('zone', d - m.outro, d);
+        if (m.intro) at('tick mark', m.intro);
+        if (m.outro) at('tick mark', d - m.outro);
+    }
+    const seekTo = (e) => {
+        const r = track.getBoundingClientRect();
+        video.currentTime = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1) * (video.duration || 0);
+    };
+    track.onpointerdown = (e) => { track.setPointerCapture(e.pointerId); seekTo(e); track.onpointermove = seekTo; };
+    track.onpointerup = () => { track.onpointermove = null; };
+    video.onclick = () => (video.paused ? video.play() : video.pause());
+    video.ondblclick = full;
+    video.addEventListener('play', () => { playBtn.textContent = '❚❚'; });
+    video.addEventListener('pause', () => { playBtn.textContent = '▶'; });
+    // Controls and cursor hide after 2.5 s without pointer movement while playing.
+    let idle;
+    const wake = () => {
+        stage.classList.remove('idle');
+        clearTimeout(idle);
+        idle = setTimeout(() => { if (!video.paused) stage.classList.add('idle'); }, 2500);
+    };
+    stage.addEventListener('pointermove', wake);
+    video.addEventListener('play', wake);
+    video.addEventListener('pause', wake);
 
     document.addEventListener('keydown', (e) => {
         const t = e.composedPath()[0];
@@ -496,6 +626,9 @@ function onepace() {
         else if (e.key === 'Escape') settings.hidden = true;
         else if (e.key === 'n') play(cur + 1);
         else if (e.key === 'p') play(cur - 1);
+        else if (e.key === 'k' || e.key === ' ') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+        else if (e.key === 'f') full();
+        else if (e.key === 'm') video.muted = !video.muted;
     });
 
     const last = eps.findIndex((e) => e.key === get('last', ''));
