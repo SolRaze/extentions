@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.5
+// @version      1.6
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -192,7 +192,10 @@ function onepace() {
     const opt = { variant: get('variant', 'English Subtitles'), res: get('res', '1080p'), alt: get('alt', false), skip: get('skip', true), auto: get('auto', true), list: get('list', true) };
     const watched = get('watched', {}); // episode key -> 1
     const pos = get('pos', {}); // episode key -> resume seconds, dropped once watched
-    const marks = get('marks', {}); // arc slug -> { intro: seconds from start, outro: seconds before end }
+    // Arc slug or episode key -> { intro: seconds from start, outro: seconds before end }.
+    // An episode's own mark wins per field; the arc's is the default for its unmarked episodes.
+    const marks = get('marks', {});
+    const markOf = () => (cur < 0 ? {} : { ...marks[eps[cur].arc], ...marks[eps[cur].key] });
     const variants = [...new Set(eps.flatMap((e) => Object.keys(e.src).map((l) => l.split(',')[0].trim())))];
 
     GM_addStyle(`
@@ -215,7 +218,7 @@ function onepace() {
         header { grid-column: 1 / -1; display: flex; align-items: center; border-bottom: 1px solid #1d2229; background: #12161b; }
         .brand { width: 340px; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-right: 1px solid #1d2229; }
         .app.nolist .brand { width: auto; gap: 16px; border-right: 0; }
-        .logo { font-size: 17px; font-weight: 700; color: #f5c518; letter-spacing: 0.5px; }
+        .logo { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
         header button { background: none; border: 0; padding: 4px 6px; color: #8a939e; }
         header button:hover { color: #fff; }
         header .side { font-size: 20px; line-height: 1; }
@@ -223,7 +226,7 @@ function onepace() {
         .arc { position: sticky; top: 0; padding: 8px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; margin-left: 6px; }
         .arc.open { color: #fff; }
-        .arc.cur { color: #f5c518; box-shadow: inset 3px 0 #f5c518; }
+        .arc.cur { color: #fff; background: #1b2128; box-shadow: inset 3px 0 #fff; }
         .ep { display: flex; gap: 8px; padding: 6px 12px; cursor: pointer; align-items: baseline; }
         .ep:hover { background: #151a20; }
         .ep.cur { background: #1b2733; color: #fff; }
@@ -239,9 +242,9 @@ function onepace() {
         .stage.idle .ctl { opacity: 0; }
         .track { position: relative; height: 6px; margin-bottom: 10px; background: #fff3; border-radius: 3px; cursor: pointer; }
         .track::before { content: ''; position: absolute; inset: -8px 0; }
-        .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #f5c518; border-radius: 3px; pointer-events: none; }
+        .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; border-radius: 3px; pointer-events: none; }
         .zone { position: absolute; top: 0; bottom: 0; background: #fff5; pointer-events: none; }
-        .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; pointer-events: none; }
+        .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px #000a; pointer-events: none; }
         .tick.mark { background: #4caf50; }
         .crow { display: flex; gap: 8px; align-items: center; color: #fff; }
         .crow .time { margin-right: auto; font-variant-numeric: tabular-nums; }
@@ -297,7 +300,7 @@ function onepace() {
 
     const fill = el('div', { className: 'fill' });
     const ticks = el('div');
-    const track = el('div', { className: 'track' }, ticks, fill);
+    const track = el('div', { className: 'track' }, fill, ticks);
     const time = el('span', { className: 'time' });
     const playBtn = button('▶', () => (video.paused ? video.play() : video.pause()));
     const volBtn = button('vol 100%', () => { video.muted = !video.muted; });
@@ -438,16 +441,16 @@ function onepace() {
     const paint = () => {
         for (const ep of eps) rows.get(ep.key).classList.toggle('seen', !!watched[ep.key]);
         for (const h of heads.values()) h.count.textContent = `${h.arc.eps.filter((e) => watched[e.key]).length}/${h.arc.eps.length}`;
-        const m = marks[eps[cur]?.arc];
+        const m = markOf();
         drawTicks();
         note.textContent = [ranges.length && `chapters: ${ranges.map((r) => r.title).join(', ')}`,
-            m?.intro && `intro ${Math.round(m.intro)}s`, m?.outro && `outro last ${Math.round(m.outro)}s`].filter(Boolean).join(' · ');
+            m.intro && `intro ${Math.round(m.intro)}s`, m.outro && `outro last ${Math.round(m.outro)}s`].filter(Boolean).join(' · ');
     };
 
     function mark(kind, seconds) {
-        const arc = eps[cur].arc;
-        if (!kind) delete marks[arc];
-        else marks[arc] = { ...marks[arc], [kind]: seconds };
+        const { arc, key } = eps[cur];
+        if (!kind) { delete marks[arc]; delete marks[key]; }
+        else for (const k of [key, arc]) marks[k] = { ...marks[k], [kind]: seconds };
         set('marks', marks);
         paint();
     }
@@ -514,7 +517,7 @@ function onepace() {
             return;
         }
         if (ranges.length) return;
-        const m = marks[eps[cur].arc] || {};
+        const m = markOf();
         if (m.intro && t < m.intro && !done.has('intro')) { done.add('intro'); video.currentTime = m.intro; }
         if (m.outro && t >= d - m.outro && !done.has('outro')) { done.add('outro'); finish(); if (opt.auto) play(cur + 1); }
     });
@@ -575,7 +578,7 @@ function onepace() {
         if (!d || cur < 0) return null;
         const r = ranges.find((x) => t >= x.start && t < x.end && x.end < d - 1);
         if (r) return r.end;
-        const m = marks[eps[cur].arc] || {};
+        const m = markOf();
         if (ranges.length) return null;
         if (m.intro) return t < m.intro ? m.intro : null;
         return t < 180 && !done.has('intro') ? Math.min(t + GUESS, d) : null;
@@ -595,7 +598,7 @@ function onepace() {
         const at = (cls, a, b) => ticks.append(el('div', { className: cls, style: `left:${(a / d) * 100}%` + (b == null ? '' : `;width:${((b - a) / d) * 100}%`) }));
         for (const r of ranges) at('zone', r.start, r.end);
         for (const c of chapters) if (c.start > 0) at('tick', c.start);
-        const m = marks[eps[cur].arc] || {};
+        const m = markOf();
         if (!ranges.length && m.intro) at('zone', 0, m.intro);
         if (!ranges.length && m.outro) at('zone', d - m.outro, d);
         if (m.intro) at('tick mark', m.intro);

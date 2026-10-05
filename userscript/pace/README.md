@@ -6,7 +6,7 @@ pixeldrain list player | side bars hidden | opening skip
 onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill brings the player back
 header | one piece left | bare ☰ hides the list | pace far right
-list | arcs only, watched count per arc | one arc open at a time | playing arc opens at the top, highlighted | ✓ watched | right-click toggles watched
+list | arcs only, watched count per arc | one arc open at a time | playing arc opens at the top, white bar | ✓ watched | right-click toggles watched
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it | download far right
 controls | own seek bar, play, time, mute, pip, fullscreen | hide after 2.5 s idle | click plays, double-click fullscreen
 seek bar | shaded skip ranges | white ticks chapter starts | green ticks the arc's marks
@@ -20,7 +20,7 @@ update | settings button | checks greasyfork meta | installs through tampermonke
 variant | english subtitles, dub, dub with closed captions | alternate cuts toggle picks extended or g-8 cut where one exists
 resolution | 1080p, 720p, 480p | nearest carried one when missing
 skip | opening, ending, credits, preview chapters | once per file | seek back replays
-marks | mark intro end, mark outro start | per arc | files without chapters only | clear marks
+marks | mark intro end, mark outro start | per episode, latest also the arc default for unmarked episodes | files without chapters only | clear marks drops both
 autonext | on outro mark, skipped last chapter or end | toggle
 watched | past 90% or finished | first unwatched opens, or the last played
 export, import | settings | watched, marks, resume as pace.json | import merges
