@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.9
+// @version      1.10
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -223,7 +223,7 @@ function onepace() {
         header button:hover { color: #fff; }
         header .side { font-size: 20px; line-height: 1; }
         header .gear { margin-right: 6px; }
-        header .next { min-width: 0; margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        header .next { min-width: 0; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         header .next[hidden] { display: none; }
         .total { margin-left: auto; padding: 0 8px; color: #6b7480; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .prog { position: absolute; left: 0; bottom: -1px; height: 2px; background: #fff; pointer-events: none; }
@@ -264,7 +264,7 @@ function onepace() {
         .bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 8px; user-select: none; }
         .bar .mid { grid-column: 2; display: flex; gap: 8px; }
         .bar .dl { grid-column: 3; justify-self: end; text-decoration: none; }
-        .arcname { color: #6b7480; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .arcname { flex: none; margin-left: 14px; color: #fff; font-weight: 600; white-space: nowrap; }
         .title { font-size: 16px; font-weight: 600; color: #fff; }
         .desc { color: #8a939e; margin-top: 4px; max-width: 90ch; }
         button, select, .dl { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
@@ -286,7 +286,7 @@ function onepace() {
 
     const video = el('video', { playsInline: true, crossOrigin: 'anonymous' });
     const ov = el('div', { className: 'ov', hidden: true });
-    const arcname = el('div', { className: 'arcname' });
+    const arcname = el('span', { className: 'arcname' });
     const dl = el('a', { className: 'dl', textContent: '↓ download', title: 'download this file' });
     const title = el('div', { className: 'title' });
     const desc = el('div', { className: 'desc' });
@@ -407,7 +407,7 @@ function onepace() {
     side.className = 'side';
     gear.className = 'gear';
     const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') },
-        el('header', {}, el('div', { className: 'brand' }, el('span', { className: 'logo', textContent: 'One Piece' }), side), next, total, gear, prog),
+        el('header', {}, el('div', { className: 'brand' }, el('span', { className: 'logo', textContent: 'One Piece' }), side), arcname, total, next, gear, prog),
         list,
         el('main', {},
             settings,
@@ -420,7 +420,6 @@ function onepace() {
                         button('+10s', () => seek(10)),
                         button('next ⏭', () => play(cur + 1))),
                     dl),
-                arcname,
                 title,
                 desc)));
     root.addEventListener('click', (e) => {

@@ -5,14 +5,14 @@ pixeldrain list player | side bars hidden | opening skip
 
 onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill brings the player back
-header | one piece left | bare ☰ hides the list | up next, click plays it | watched of all episodes, white line under the header | pace far right
+header | one piece left | bare ☰ hides the list | playing arc | watched of all episodes, white line under the header | up next, click plays it | pace far right
 list | arcs only, watched count per arc | one arc open at a time | playing arc opens at the top, white bar | ✓ watched | right-click toggles watched
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it | download far right
 controls | own seek bar, play, time, mute, pip, fullscreen | under the video, overlaid only in fullscreen, hide there after 2.5 s idle | click plays, double-click fullscreen
 seek bar | shaded skip ranges | white ticks chapter starts | green ticks the arc's marks
 skip intro | button over the video when auto skip did not take it | chapter or mark with skip off | unknown intro jumps 90 s, first 3 min only
 resume | each episode reopens where it stopped | dropped once watched
-info | arc | episode number and title | description
+info | episode number and title | description
 gestures | wheel over left 30% brightness | right 30% volume to 200% | readout over the video
 focus | buttons never take focus | no ring on the player after a seek
 settings | pace pill top right | variant, resolution, cuts, skip, autonext, marks | esc or click outside closes
