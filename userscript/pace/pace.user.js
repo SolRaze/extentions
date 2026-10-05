@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.8
+// @version      1.9
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -239,11 +239,13 @@ function onepace() {
         .ep.seen .n::after { content: ' ✓'; color: #4caf50; }
         .eps[hidden] { display: none; }
         main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-        .stage { position: relative; flex: 1; min-height: 0; background: #000; }
-        video { width: 100%; height: 100%; display: block; cursor: pointer; }
+        .stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; background: #000; }
+        video { flex: 1; min-height: 0; width: 100%; display: block; cursor: pointer; }
         .stage.idle, .stage.idle video { cursor: none; }
-        .ctl { position: absolute; left: 0; right: 0; bottom: 0; padding: 28px 12px 10px; background: linear-gradient(transparent, #000d 60%, #000); transition: opacity 0.2s; user-select: none; }
-        .stage.idle .ctl { opacity: 0; }
+        /* Controls sit under the video, never over it: an overlay at a fractional bottom edge lets a pixel row of video show beneath it. */
+        .ctl { padding: 10px 12px; background: #000; user-select: none; }
+        .stage:fullscreen .ctl { position: absolute; left: 0; right: 0; bottom: 0; padding-top: 28px; background: linear-gradient(transparent, #000d 60%, #000); transition: opacity 0.2s; }
+        .stage:fullscreen.idle .ctl { opacity: 0; }
         .track { position: relative; height: 6px; margin-bottom: 10px; background: #fff3; border-radius: 3px; cursor: pointer; }
         .track::before { content: ''; position: absolute; inset: -8px 0; }
         .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; border-radius: 3px; pointer-events: none; }

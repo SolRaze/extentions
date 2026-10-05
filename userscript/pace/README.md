@@ -8,7 +8,7 @@ page hidden behind the player | tab title one piece, held against the router | s
 header | one piece left | bare ☰ hides the list | up next, click plays it | watched of all episodes, white line under the header | pace far right
 list | arcs only, watched count per arc | one arc open at a time | playing arc opens at the top, white bar | ✓ watched | right-click toggles watched
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it | download far right
-controls | own seek bar, play, time, mute, pip, fullscreen | hide after 2.5 s idle | click plays, double-click fullscreen
+controls | own seek bar, play, time, mute, pip, fullscreen | under the video, overlaid only in fullscreen, hide there after 2.5 s idle | click plays, double-click fullscreen
 seek bar | shaded skip ranges | white ticks chapter starts | green ticks the arc's marks
 skip intro | button over the video when auto skip did not take it | chapter or mark with skip off | unknown intro jumps 90 s, first 3 min only
 resume | each episode reopens where it stopped | dropped once watched
