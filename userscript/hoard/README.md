@@ -6,7 +6,7 @@ usage
 hoard pill top-right, same spot as ✕ | or tampermonkey menu open hoard | sync to disk | esc or ✕ closes
 refresh pulls saved feed with tab session, then syncs to disk while the links are fresh | cached until next refresh | a walk that stops early still syncs what it loaded
 collection membership comes from each saved post | names from the collection list, else the saved page
-refresh from instagram.com/<you>/saved/ | scrolls the collection grid to the end | names kept after that
+refresh from instagram.com/<you>/saved/ | walks the collection grid a screen at a time, learning names at every step | names kept after that
 unknown name = post waits, sync skips it | status shows the count | refresh from /saved/
 collection renamed on instagram = renamed in the archive | no redownload | tidy.py in the hoard repo moves the folder on disk
 tab title reads saved on every instagram page
@@ -73,6 +73,7 @@ sync fails posts after a refresh that never finished | cdn links expire hours af
 reload mid-refresh lost the whole walk | fixed 1.16 | saved every 25 pages | next refresh within the hour resumes
 sync grinds on, every post 'no response from the tampermonkey downloader' | display slept mid-sync, tampermonkey's downloader never answered again | 1.22 stops after 3 in a row, 1.23 holds the screen on while busy | restart helium, refresh
 every sync rewrote every sidecar, hours of json downloads, downloader hung | the feed position in each sidecar shifted with every new save | fixed 1.24 | sidecars carry no order, hashes of old ones adopted once, no rewrite
+2100 posts wait for collection names after a refresh from /saved/ | the name scan stopped while the grid was still loading, and tiles scrolled past drop out | fixed 1.25 | scans a screen at a time until the bottom gives nothing new
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 

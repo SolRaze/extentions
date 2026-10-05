@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.24
+// @version      1.25
 // @description  instagram saved collections as an offline reference library, synced to disk
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -577,19 +577,26 @@ function main() {
         return names;
     }
 
-    // The saved page lazy-loads its collection grid: scroll to the end so every name is in the DOM.
+    // The saved page lazy-loads its collection grid and drops tiles scrolled past: walk it a screen
+    // at a time, learning names at every step, until the bottom gives nothing new 4 times running.
     async function scrollSaved() {
-        if (!/^\/[^/]+\/saved\/?$/.test(location.pathname)) return;
-        for (let n = -1, k; n !== (k = document.querySelectorAll('a[href*="/saved/"]').length); n = k) {
+        let names = learnNames();
+        if (!/^\/[^/]+\/saved\/?$/.test(location.pathname)) return names;
+        window.scrollTo(0, 0);
+        for (let idle = 0; idle < 4;) {
+            const k = Object.keys(names).length;
             status(`reading collection names ${k}`);
-            window.scrollTo(0, document.documentElement.scrollHeight);
+            window.scrollBy(0, innerHeight * 0.8);
             await sleep(PAGE_DELAY);
+            names = learnNames();
+            const bottom = scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
+            idle = Object.keys(names).length > k || !bottom ? 0 : idle + 1;
         }
+        return names;
     }
 
     async function load() {
-        await scrollSaved();
-        const names = learnNames();
+        const names = await scrollSaved();
         try {
             await pages('collections/list/?collection_types=' + encodeURIComponent('["MEDIA"]'),
                 batch => batch.forEach(c => { names[String(c.collection_id)] = c.collection_name; }));
