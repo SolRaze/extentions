@@ -5,7 +5,7 @@ pixeldrain list player | side bars hidden | opening skip
 
 onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill brings the player back
-header | one piece left | bare ☰ hides the list | pace far right
+header | one piece left | bare ☰ hides the list | up next, click plays it | watched of all episodes, white line under the header | pace far right
 list | arcs only, watched count per arc | one arc open at a time | playing arc opens at the top, white bar | ✓ watched | right-click toggles watched
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it | download far right
 controls | own seek bar, play, time, mute, pip, fullscreen | hide after 2.5 s idle | click plays, double-click fullscreen

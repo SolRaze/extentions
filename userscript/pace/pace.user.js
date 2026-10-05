@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.6
+// @version      1.7
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -215,14 +215,18 @@ function onepace() {
         .app.nolist { grid-template-columns: 1fr; }
         .app.nolist aside { display: none; }
         aside { position: relative; overflow-y: auto; border-right: 1px solid #1d2229; }
-        header { grid-column: 1 / -1; display: flex; align-items: center; border-bottom: 1px solid #1d2229; background: #12161b; }
+        header { position: relative; grid-column: 1 / -1; display: flex; align-items: center; border-bottom: 1px solid #1d2229; background: #12161b; }
         .brand { width: 340px; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-right: 1px solid #1d2229; }
         .app.nolist .brand { width: auto; gap: 16px; border-right: 0; }
         .logo { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
         header button { background: none; border: 0; padding: 4px 6px; color: #8a939e; }
         header button:hover { color: #fff; }
         header .side { font-size: 20px; line-height: 1; }
-        header .gear { margin-left: auto; margin-right: 6px; }
+        header .gear { margin-right: 6px; }
+        header .next { min-width: 0; margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        header .next[hidden] { display: none; }
+        .total { margin-left: auto; padding: 0 8px; color: #6b7480; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .prog { position: absolute; left: 0; bottom: -1px; height: 2px; background: #fff; pointer-events: none; }
         .arc { position: sticky; top: 0; padding: 8px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; margin-left: 6px; }
         .arc.open { color: #fff; }
@@ -392,12 +396,16 @@ function onepace() {
         el('div', { className: 'row' }, exportBtn, button('import', () => file.click()), file),
         el('div', { className: 'row' }, updateBtn, button('show onepace page', () => show(false))),
         status);
+    const next = button('', () => play(cur + 1));
+    next.className = 'next';
+    const total = el('span', { className: 'total' });
+    const prog = el('div', { className: 'prog' });
     const side = button('☰', () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); });
     side.title = 'episode list';
     side.className = 'side';
     gear.className = 'gear';
     const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') },
-        el('header', {}, el('div', { className: 'brand' }, el('span', { className: 'logo', textContent: 'One Piece' }), side), gear),
+        el('header', {}, el('div', { className: 'brand' }, el('span', { className: 'logo', textContent: 'One Piece' }), side), next, total, gear, prog),
         list,
         el('main', {},
             settings,
@@ -441,6 +449,9 @@ function onepace() {
     const paint = () => {
         for (const ep of eps) rows.get(ep.key).classList.toggle('seen', !!watched[ep.key]);
         for (const h of heads.values()) h.count.textContent = `${h.arc.eps.filter((e) => watched[e.key]).length}/${h.arc.eps.length}`;
+        const seen = eps.filter((e) => watched[e.key]).length;
+        total.textContent = `${seen}/${eps.length} watched`;
+        prog.style.width = `${(seen / eps.length) * 100}%`;
         const m = markOf();
         drawTicks();
         note.textContent = [ranges.length && `chapters: ${ranges.map((r) => r.title).join(', ')}`,
@@ -477,6 +488,9 @@ function onepace() {
         arcname.textContent = arc.title;
         title.textContent = `${ep.num} · ${ep.title}`;
         dl.href = `https://pixeldrain.net/api/file/${s.id}?download`;
+        const up = eps[i + 1];
+        next.hidden = !up;
+        if (up) next.textContent = `next: ${up.arc === ep.arc ? '' : arcs.find((a) => a.slug === up.arc).title + ' '}${up.num} · ${up.title}`;
         desc.textContent = `${ep.desc}  [${s.label} · ${s.res}]`;
         ranges = [];
         chapters = [];
