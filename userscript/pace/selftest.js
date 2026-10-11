@@ -1,7 +1,7 @@
-// Self-check for pace.user.js: chapter parsing, skip ranges, source picking and version compare.
+// Self-check for pace.user.js: chapter parsing, skip ranges, skip zones, source picking and version compare.
 // Run: node selftest.js
 const assert = require('assert');
-const { parseChpl, skipRanges, pickSource, newer } = require('./pace.user.js');
+const { parseChpl, skipRanges, zonesOf, pickSource, newer } = require('./pace.user.js');
 
 // chpl v1 as muxed in One Pace files, behind padding as in a file tail
 const title = (s) => [s.length, ...Buffer.from(s)];
@@ -26,6 +26,17 @@ assert.deepStrictEqual(skipRanges([{ start: 0, title: 'Episode' }, { start: 1200
 assert.deepStrictEqual(skipRanges([{ start: 0, title: 'Openers' }], 10), []);
 // no chpl box, no chapters
 assert.deepStrictEqual(parseChpl(new Uint8Array(64)), []);
+
+// zonesOf: chapter ranges win over marks
+const op = { title: 'Opening', start: 80, end: 231 };
+assert.deepStrictEqual(zonesOf([op], { intro: 110, outro: 60 }, 1200), [{ id: op, start: 80, end: 231 }]);
+// marks: intro is a length from 0, or from the episode's own start; outro counts back from the end
+assert.deepStrictEqual(zonesOf([], { intro: 110, outro: 60 }, 1200), [{ id: 'intro', start: 0, end: 110 }, { id: 'outro', start: 1140, end: 1200 }]);
+assert.deepStrictEqual(zonesOf([], { from: 70, intro: 110 }, 1200), [{ id: 'intro', start: 70, end: 180 }]);
+// a start alone is no zone, nothing before the duration is known, and zones stay inside the file
+assert.deepStrictEqual(zonesOf([], { from: 70 }, 1200), []);
+assert.deepStrictEqual(zonesOf([], { intro: 110 }, NaN), []);
+assert.deepStrictEqual(zonesOf([], { from: 50, intro: 110, outro: 500 }, 100), [{ id: 'intro', start: 50, end: 100 }, { id: 'outro', start: 0, end: 100 }]);
 
 // pickSource: variant base and cut, then nearest resolution
 const src = {

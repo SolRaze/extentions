@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.10
+// @version      1.11
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -59,6 +59,18 @@ function skipRanges(chapters, duration) {
     return chapters
         .map((c, i) => ({ title: c.title, start: c.start, end: i + 1 < chapters.length ? chapters[i + 1].start : duration }))
         .filter((c) => SKIP.test(c.title.trim()));
+}
+
+// Skip zones of one file as { id, start, end }: its chapter ranges, else the marks m.
+// m.intro is the opening's length and m.from where it starts, 0 unless marked; m.outro counts back from the end.
+function zonesOf(ranges, m, duration) {
+    if (!duration) return [];
+    if (ranges.length) return ranges.map((r) => ({ id: r, start: r.start, end: r.end }));
+    const from = m.from || 0;
+    const out = [];
+    if (m.intro > 0 && from < duration) out.push({ id: 'intro', start: from, end: Math.min(from + m.intro, duration) });
+    if (m.outro > 0) out.push({ id: 'outro', start: Math.max(duration - m.outro, 0), end: duration });
+    return out;
 }
 
 // Source for one episode. src maps a variant label ("English Dub, Extended Cut") to { res: fileId }.
@@ -139,7 +151,7 @@ function scrape(doc) {
     return arcs.filter((a) => a.eps.length);
 }
 
-if (typeof module !== 'undefined') module.exports = { parseChpl, skipRanges, pickSource, scrape, newer };
+if (typeof module !== 'undefined') module.exports = { parseChpl, skipRanges, zonesOf, pickSource, scrape, newer };
 
 // pixeldrain list player: side bars hidden, chapters skipped, playback kept going between files.
 function pixeldrain() {
@@ -189,13 +201,16 @@ function onepace() {
 
     const get = (k, d) => GM_getValue(k, d);
     const set = (k, v) => GM_setValue(k, v);
-    const opt = { variant: get('variant', 'English Subtitles'), res: get('res', '1080p'), alt: get('alt', false), skip: get('skip', true), auto: get('auto', true), list: get('list', true) };
+    const opt = { variant: get('variant', 'English Subtitles'), res: get('res', '1080p'), alt: get('alt', false), skip: get('skip', true), auto: get('auto', true), list: get('list', true),
+        upnext: get('upnext', true), skipbtn: get('skipbtn', true), wheel: get('wheel', true), resume: get('resume', true) };
     const watched = get('watched', {}); // episode key -> 1
     const pos = get('pos', {}); // episode key -> resume seconds, dropped once watched
-    // Arc slug or episode key -> { intro: seconds from start, outro: seconds before end }.
+    // Arc slug or episode key -> { from: opening start, intro: opening length, outro: seconds before end }.
     // An episode's own mark wins per field; the arc's is the default for its unmarked episodes.
+    // from is kept per episode only: an opening's length holds across an arc, where it begins does not.
     const marks = get('marks', {});
     const markOf = () => (cur < 0 ? {} : { ...marks[eps[cur].arc], ...marks[eps[cur].key] });
+    const zones = () => (cur < 0 ? [] : zonesOf(ranges, markOf(), video.duration));
     const variants = [...new Set(eps.flatMap((e) => Object.keys(e.src).map((l) => l.split(',')[0].trim())))];
 
     GM_addStyle(`
@@ -210,33 +225,36 @@ function onepace() {
     style.textContent = `
         :host { all: initial; }
         * { box-sizing: border-box; }
-        .app { position: fixed; inset: 0; z-index: 2147483646; display: grid; grid-template-columns: 340px 1fr; grid-template-rows: auto minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 13px/1.4 system-ui, sans-serif; }
+        .app { position: fixed; inset: 0; z-index: 2147483646; --side: 300px; display: grid; grid-template-columns: var(--side) 1fr; grid-template-rows: auto minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 13px/1.4 system-ui, sans-serif; }
         .app[hidden] { display: none; }
         .app.nolist { grid-template-columns: 1fr; }
         .app.nolist aside { display: none; }
-        aside { position: relative; overflow-y: auto; border-right: 1px solid #1d2229; }
-        header { position: relative; grid-column: 1 / -1; display: flex; align-items: center; border-bottom: 1px solid #1d2229; background: #12161b; }
-        .brand { width: 340px; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-right: 1px solid #1d2229; }
-        .app.nolist .brand { width: auto; gap: 16px; border-right: 0; }
-        .logo { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+        aside { position: relative; overflow-y: auto; border-right: 1px solid #1d2229; scrollbar-width: thin; scrollbar-color: #2a313a transparent; }
+        header { position: relative; grid-column: 1 / -1; display: flex; align-items: center; height: 44px; border-bottom: 1px solid #1d2229; background: #12161b; }
+        .brand { width: var(--side); align-self: stretch; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 6px; border-right: 1px solid #1d2229; }
+        .app.nolist .brand { width: auto; border-right: 0; }
+        .logo { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 0.2px; line-height: 1; white-space: nowrap; }
         header button { background: none; border: 0; padding: 4px 6px; color: #8a939e; }
         header button:hover { color: #fff; }
-        header .side { font-size: 20px; line-height: 1; }
+        header .side { font-size: 18px; line-height: 1; padding: 6px 8px; }
+        header .side:hover { background: #1b2128; }
         header .gear { margin-right: 6px; }
-        header .next { min-width: 0; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        header .next[hidden] { display: none; }
+        header .next { display: block; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+        header .next[hidden], .app.nonext .next { display: none; }
         .total { margin-left: auto; padding: 0 8px; color: #6b7480; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .prog { position: absolute; left: 0; bottom: -1px; height: 2px; background: #fff; pointer-events: none; }
-        .arc { position: sticky; top: 0; padding: 8px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
-        .arc small { color: #6b7480; font-weight: 400; margin-left: 6px; }
+        .arc { position: sticky; top: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
+        .arc small { color: #6b7480; font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+        .arc:hover { background: #171c22; }
         .arc.open { color: #fff; }
         .arc.cur { color: #fff; background: #1b2128; box-shadow: inset 3px 0 #fff; }
-        .ep { display: flex; gap: 8px; padding: 6px 12px; cursor: pointer; align-items: baseline; }
+        .ep { display: flex; gap: 10px; padding: 6px 12px; cursor: pointer; align-items: flex-start; }
         .ep:hover { background: #151a20; }
         .ep.cur { background: #1b2733; color: #fff; }
-        .ep .n { color: #6b7480; min-width: 34px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .ep .n { color: #6b7480; min-width: 22px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .ep .t { flex: 1; min-width: 0; }
         .ep.seen .t { color: #6b7480; }
-        .ep.seen .n::after { content: ' ✓'; color: #4caf50; }
+        .ep.seen::after { content: '✓'; color: #4caf50; }
         .eps[hidden] { display: none; }
         main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
         .stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; background: #000; }
@@ -267,13 +285,14 @@ function onepace() {
         .arcname { flex: none; margin-left: 14px; color: #fff; font-weight: 600; white-space: nowrap; }
         .title { font-size: 16px; font-weight: 600; color: #fff; }
         .desc { color: #8a939e; margin-top: 4px; max-width: 90ch; }
-        button, select, .dl { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+        button, select, .dl { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
         button:hover, select:hover, .dl:hover { border-color: #3d4752; }
         label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
         .note { color: #6b7480; }
         .settings { position: absolute; right: 12px; top: 48px; z-index: 1; display: grid; gap: 8px; padding: 12px; background: #12161b; border: 1px solid #2a313a; border-radius: 8px; box-shadow: 0 8px 24px #0008; }
         .settings[hidden] { display: none; }
         .settings .row { display: flex; gap: 8px; }
+        .settings .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
         .pill { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646; }
     `;
     root.append(style);
@@ -298,7 +317,7 @@ function onepace() {
     };
     const check = (key, text, live) => {
         const c = el('input', { type: 'checkbox', checked: opt[key] });
-        c.onchange = () => { opt[key] = c.checked; set(key, c.checked); if (live) play(cur, video.currentTime); };
+        c.onchange = () => { opt[key] = c.checked; set(key, c.checked); if (live) play(cur, video.currentTime); else refresh(); };
         return el('label', {}, c, text);
     };
     // mousedown default would move focus onto the button and leave a ring after the click.
@@ -387,13 +406,19 @@ function onepace() {
     const seek = (d) => { video.currentTime = Math.min(Math.max(video.currentTime + d, 0), video.duration || 0); };
     const settings = el('div', { className: 'settings', hidden: true },
         el('div', { className: 'row' }, select('variant', variants), select('res', RES)),
-        check('alt', 'alternate cuts', true),
-        check('skip', 'skip intro/outro'),
-        check('auto', 'autonext'),
+        el('div', { className: 'opts' },
+            check('alt', 'alternate cuts', true),
+            check('skip', 'skip intro/outro'),
+            check('auto', 'autonext'),
+            check('resume', 'resume position'),
+            check('upnext', 'up next in header'),
+            check('skipbtn', 'skip intro button'),
+            check('wheel', 'wheel brightness, volume')),
         el('div', { className: 'row' },
-            button('mark intro end', () => mark('intro', video.currentTime)),
-            button('mark outro start', () => mark('outro', video.duration - video.currentTime)),
-            button('clear marks', () => mark())),
+            button('mark intro start', () => mark('from')),
+            button('mark intro end', () => mark('intro')),
+            button('mark outro start', () => mark('outro')),
+            button('clear marks', () => mark(null))),
         note,
         el('div', { className: 'row' }, exportBtn, button('import', () => file.click()), file),
         el('div', { className: 'row' }, updateBtn, button('show onepace page', () => show(false))),
@@ -406,8 +431,8 @@ function onepace() {
     side.title = 'episode list';
     side.className = 'side';
     gear.className = 'gear';
-    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') },
-        el('header', {}, el('div', { className: 'brand' }, el('span', { className: 'logo', textContent: 'One Piece' }), side), arcname, total, next, gear, prog),
+    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') + (opt.upnext ? '' : ' nonext') },
+        el('header', {}, el('div', { className: 'brand' }, side, el('span', { className: 'logo', textContent: 'One Piece' })), arcname, total, next, gear, prog),
         list,
         el('main', {},
             settings,
@@ -456,23 +481,37 @@ function onepace() {
         const m = markOf();
         drawTicks();
         note.textContent = [ranges.length && `chapters: ${ranges.map((r) => r.title).join(', ')}`,
-            m.intro && `intro ${Math.round(m.intro)}s`, m.outro && `outro last ${Math.round(m.outro)}s`].filter(Boolean).join(' · ');
+            m.intro && `intro ${fmt(m.from || 0)} to ${fmt((m.from || 0) + m.intro)}`, m.outro && `outro last ${Math.round(m.outro)}s`].filter(Boolean).join(' · ');
     };
 
-    function mark(kind, seconds) {
+    // kind: 'from' intro start, 'intro' intro end, 'outro' outro start, all at the current time; null clears.
+    // Moving the start keeps a marked end where it is. The zone just marked counts as taken for this file.
+    function mark(kind) {
         const { arc, key } = eps[cur];
+        const t = video.currentTime;
         if (!kind) { delete marks[arc]; delete marks[key]; }
-        else for (const k of [key, arc]) marks[k] = { ...marks[k], [kind]: seconds };
+        else {
+            const own = { ...marks[key] };
+            const from = own.from || 0;
+            if (kind === 'outro') own.outro = video.duration - t;
+            else if (kind === 'intro') own.intro = t - from;
+            else { if (own.intro) own.intro += from - t; own.from = t; }
+            if (!(own.intro > 0)) delete own.intro;
+            marks[key] = own;
+            marks[arc] = { ...marks[arc], ...(own.intro && { intro: own.intro }), ...(own.outro && { outro: own.outro }) };
+            done.add(kind === 'outro' ? 'outro' : 'intro');
+        }
         set('marks', marks);
         paint();
     }
+    const refresh = () => { app.classList.toggle('nonext', !opt.upnext); progress(); };
 
     async function play(i, at = 0, go = true) {
         if (i < 0 || i >= eps.length) return;
         const ep = eps[i];
         const s = pickSource(ep.src, opt.variant, opt.res, opt.alt);
         if (!s) return;
-        if (i !== cur) at = pos[ep.key] || 0;
+        if (i !== cur) at = (opt.resume && pos[ep.key]) || 0;
         rows.get(eps[cur]?.key)?.classList.remove('cur');
         heads.get(eps[cur]?.arc)?.head.classList.remove('cur');
         heads.get(ep.arc).head.classList.add('cur');
@@ -514,8 +553,7 @@ function onepace() {
         if (!watched[key]) { watched[key] = 1; set('watched', watched); paint(); }
     };
 
-    // Chapter ranges first; the arc's manual marks apply to files without chapters.
-    // Each skip fires once per file, so seeking back into skipped time plays it.
+    // Each zone skips once per file, so seeking back into skipped time plays it.
     video.addEventListener('timeupdate', () => {
         const t = video.currentTime;
         const d = video.duration;
@@ -524,17 +562,11 @@ function onepace() {
         if (t > d * 0.9) finish();
         else if (Math.abs(t - (pos[key] || 0)) >= 5) { pos[key] = Math.floor(t); set('pos', pos); }
         if (!opt.skip) return;
-        for (const r of ranges) {
-            if (t < r.start || t >= r.end || done.has(r)) continue;
-            done.add(r);
-            if (r.end >= d - 1) { finish(); if (opt.auto) play(cur + 1); }
-            else video.currentTime = r.end;
-            return;
-        }
-        if (ranges.length) return;
-        const m = markOf();
-        if (m.intro && t < m.intro && !done.has('intro')) { done.add('intro'); video.currentTime = m.intro; }
-        if (m.outro && t >= d - m.outro && !done.has('outro')) { done.add('outro'); finish(); if (opt.auto) play(cur + 1); }
+        const z = zones().find((x) => t >= x.start && t < x.end && !done.has(x.id));
+        if (!z) return;
+        done.add(z.id);
+        if (z.end >= d - 1) { finish(); if (opt.auto) play(cur + 1); }
+        else video.currentTime = z.end;
     });
     video.addEventListener('ended', () => { finish(); if (opt.auto) play(cur + 1); });
 
@@ -548,7 +580,7 @@ function onepace() {
         ovTimer = setTimeout(() => { ov.hidden = true; }, 800);
     };
     video.addEventListener('wheel', (e) => {
-        if (e.ctrlKey) return;
+        if (e.ctrlKey || !opt.wheel) return;
         const r = video.getBoundingClientRect();
         const x = (e.clientX - r.left) / r.width;
         if (x > 0.3 && x < 0.7) return;
@@ -584,44 +616,44 @@ function onepace() {
         const ss = String(n % 60).padStart(2, '0');
         return n >= 3600 ? `${Math.floor(n / 3600)}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
     };
-    // Shown over intro time the auto skip did not take: a chapter or mark while skip is off,
-    // or, with neither known, the first three minutes, where it jumps a typical opening's length.
+    // Shown over intro time the auto skip did not take: a zone while skip is off or replayed,
+    // or, with no intro known, the first three minutes, where it jumps GUESS seconds.
+    // One Pace openings run 92 to 151 s; GUESS stays under the shortest so a press never cuts story.
     const GUESS = 90;
     function skipTarget() {
         const t = video.currentTime;
         const d = video.duration;
         if (!d || cur < 0) return null;
-        const r = ranges.find((x) => t >= x.start && t < x.end && x.end < d - 1);
-        if (r) return r.end;
-        const m = markOf();
-        if (ranges.length) return null;
-        if (m.intro) return t < m.intro ? m.intro : null;
+        const z = zones().find((x) => t >= x.start && t < x.end && x.end < d - 1);
+        if (z) return z.end;
+        if (ranges.length || markOf().intro) return null;
         return t < 180 && !done.has('intro') ? Math.min(t + GUESS, d) : null;
     }
     const progress = () => {
         fill.style.width = `${(video.currentTime / video.duration || 0) * 100}%`;
         time.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
-        skipi.hidden = skipTarget() == null;
+        skipi.hidden = !opt.skipbtn || skipTarget() == null;
     };
     for (const ev of ['timeupdate', 'durationchange', 'seeking', 'emptied']) video.addEventListener(ev, progress);
     video.addEventListener('loadedmetadata', drawTicks);
-    // Shaded zones are skip ranges, white ticks chapter starts, green ticks the arc's marks.
+    // Shaded zones are skip zones, white ticks chapter starts, green ticks the bounds of marked zones.
     function drawTicks() {
         ticks.replaceChildren();
         const d = video.duration;
         if (!d || cur < 0) return;
         const at = (cls, a, b) => ticks.append(el('div', { className: cls, style: `left:${(a / d) * 100}%` + (b == null ? '' : `;width:${((b - a) / d) * 100}%`) }));
-        for (const r of ranges) at('zone', r.start, r.end);
         for (const c of chapters) if (c.start > 0) at('tick', c.start);
-        const m = markOf();
-        if (!ranges.length && m.intro) at('zone', 0, m.intro);
-        if (!ranges.length && m.outro) at('zone', d - m.outro, d);
-        if (m.intro) at('tick mark', m.intro);
-        if (m.outro) at('tick mark', d - m.outro);
+        for (const z of zones()) {
+            at('zone', z.start, z.end);
+            if (!ranges.length) for (const t of [z.start, z.end]) if (t > 0 && t < d) at('tick mark', t);
+        }
     }
+    // A seek on the bar into a skip zone plays it: the zone counts as taken for this file.
     const seekTo = (e) => {
         const r = track.getBoundingClientRect();
-        video.currentTime = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1) * (video.duration || 0);
+        const t = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1) * (video.duration || 0);
+        for (const z of zones()) if (t >= z.start && t < z.end) done.add(z.id);
+        video.currentTime = t;
     };
     track.onpointerdown = (e) => { track.setPointerCapture(e.pointerId); seekTo(e); track.onpointermove = seekTo; };
     track.onpointerup = () => { track.onpointermove = null; };
