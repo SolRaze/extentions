@@ -13,7 +13,7 @@ global.document = {
     createElement: () => ({ getContext: () => ({}) })
 };
 
-const { clampSeek, seekKeyDelta, tame, segmentAt } = require('./flush.user.js');
+const { clampSeek, seekKeyDelta, tame, segmentAt, newer, cookieFile } = require('./flush.user.js');
 
 // clampSeek: never leaves the [0, duration] range
 assert.strictEqual(clampSeek(30, 10, 100), 40);
@@ -93,3 +93,13 @@ assert.strictEqual(segmentAt(segs, 12, on, new Set(['a'])), undefined, 'already 
 assert.strictEqual(segmentAt(segs, 19.7, on, new Set()), undefined, 'too close to the end');
 assert.strictEqual(segmentAt(segs, 20, on, new Set()), undefined);
 console.log('sponsorblock: ok');
+
+assert.ok(newer('1.10', '1.9') && !newer('1.4', '1.4') && !newer('1.0', '1.0.1'));
+console.log('update: ok');
+
+// cookieFile: subdomain flag follows the leading dot, httpOnly prefixed, session cookies expire at 0
+assert.strictEqual(cookieFile([
+    { domain: '.youtube.com', path: '/', secure: true, httpOnly: true, expirationDate: 1800000000.7, name: 'SID', value: 'a=b' },
+    { domain: 'www.youtube.com', path: '/', secure: false, httpOnly: false, name: 'PREF', value: 'x' },
+]), '# Netscape HTTP Cookie File\n#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1800000000\tSID\ta=b\nwww.youtube.com\tFALSE\t/\tFALSE\t0\tPREF\tx\n');
+console.log('cookies: ok');

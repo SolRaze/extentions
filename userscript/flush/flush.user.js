@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.3
+// @version      1.4
 // @description  seek buttons and keys, miniplayer button, scroll gestures, sponsorblock skipping, cpu tamer and a decluttered youtube
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -15,8 +15,12 @@
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
+// @grant        GM_info
+// @grant        GM_cookie
 // @grant        unsafeWindow
 // @connect      sponsor.ajay.app
+// @connect      greasyfork.org
 // @downloadURL https://update.greasyfork.org/scripts/598191/flush.user.js
 // @updateURL https://update.greasyfork.org/scripts/598191/flush.meta.js
 // ==/UserScript==
@@ -64,6 +68,18 @@ const seekKeyDelta = ({ key, ctrlKey, metaKey, altKey, shiftKey, target }, step,
     if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return 0;
     return key === '.' ? step : -step;
 };
+
+// Dotted versions compared numerically: 1.10 is newer than 1.9.
+const newer = (a, b) => {
+    const x = a.split('.').map(Number), y = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+    return false;
+};
+// Netscape cookies.txt as yt-dlp's --cookies reads it. The subdomain flag has to agree with the
+// domain's leading dot or python's cookie jar rejects the file; expiry 0 is a session cookie.
+const cookieFile = (cookies) => ['# Netscape HTTP Cookie File', ...cookies.map(c => [
+    (c.httpOnly ? '#HttpOnly_' : '') + c.domain, c.domain.startsWith('.') ? 'TRUE' : 'FALSE', c.path,
+    c.secure ? 'TRUE' : 'FALSE', Math.floor(c.expirationDate || 0), c.name, c.value].join('\t')), ''].join('\n');
 
 // Settings, all in tampermonkey storage. Toggles default on.
 const DEFAULTS = { hide: true, cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
@@ -380,14 +396,46 @@ const TOGGLES = [['hide', 'hide clutter'], ['seek', 'seek buttons and , . keys']
 const SB_CATEGORIES = [['sponsor', 'sponsor'], ['selfpromo', 'self promotion'], ['interaction', 'subscribe reminder'], ['intro', 'intro'], ['outro', 'outro'], ['preview', 'preview | recap'], ['filler', 'filler'], ['music_offtopic', 'non-music in music']];
 const RANGES = [['seek-step', 'seek step', 1, 60, 's'], ['gesture-sensitivity', 'gesture step', 1, 20, '%']];
 const PANEL_CSS = `
-.p { font: 13px/1.4 system-ui, sans-serif; color: #eee; background: #1c1c20; border: 1px solid #333; border-radius: 10px; padding: 10px 12px; width: 220px; box-shadow: 0 8px 24px #0009; display: grid; gap: 6px; }
-b { font-size: 14px; }
-b ~ b { font-size: 12px; color: #999; margin-top: 4px; }
+:host { all: initial; }
+* { box-sizing: border-box; font: 13px/1.4 system-ui, sans-serif; color: inherit; }
+.p { color: #e8e8ea; background: #1c1c20; border: 1px solid #ffffff1a; border-radius: 12px; padding: 12px; width: 240px;
+    max-height: calc(100vh - 80px); overflow: auto; box-shadow: 0 12px 40px #0008; display: grid; gap: 6px; }
+.top { display: flex; gap: 2px; align-items: center; }
+.top b { flex: 1; font-weight: 600; }
+.p > b { font-size: 11px; opacity: .45; margin-top: 4px; }
+button { border: 0; background: none; cursor: pointer; opacity: .6; padding: 5px 8px; border-radius: 7px; white-space: nowrap; }
+button:hover { opacity: 1; background: #ffffff14; }
+.wide { opacity: 1; background: #ffffff0f; }
 label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .r { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
 .r input { grid-column: 1 / -1; width: 100%; }
-input { accent-color: #f33; margin: 0; }
+input { accent-color: #4b6bfb; margin: 0; }
+.hint { font-size: 11px; opacity: .45; overflow-wrap: anywhere; }
+.hint:empty { display: none; }
 `;
+
+// Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.
+const META_URL = 'https://update.greasyfork.org/scripts/598191/flush.meta.js';
+const latest = () => new Promise((ok, fail) => GM_xmlhttpRequest({
+    method: 'GET', url: META_URL + '?t=' + Date.now(), timeout: 15000,
+    onload: r => { const v = /@version\s+(\S+)/.exec(r.responseText); v ? ok(v[1]) : fail(new Error('no version in meta')); },
+    onerror: () => fail(new Error('greasyfork unreachable')), ontimeout: () => fail(new Error('greasyfork timed out')),
+}));
+
+// youtube.com cookies, httpOnly ones included, saved as Downloads/youtube-cookies.txt for yt-dlp.
+// Offered in private tabs only: youtube rotates the cookies of a session a browser keeps using,
+// so the file has to come from a window that is closed right after.
+function saveCookies(say) {
+    GM_cookie.list({ domain: 'youtube.com' }, (cookies, err) => {
+        if (err || !cookies?.length) return say('cookies not read: ' + (err || 'none returned'));
+        if (!cookies.some(c => c.name === 'LOGIN_INFO')) return say('not signed in | sign in here, then get cookies');
+        const a = h('a', { href: URL.createObjectURL(new Blob([cookieFile(cookies)], { type: 'text/plain' })), download: 'youtube-cookies.txt' });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        say(`${cookies.length} cookies in Downloads/youtube-cookies.txt | close this private window now`);
+    });
+}
+
 let panel;
 function buildPanel() {
     const host = h('div');
@@ -395,8 +443,20 @@ function buildPanel() {
     // The player under a fullscreen panel would treat these as its own clicks and keys
     for (const t of ['click', 'dblclick', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'wheel', 'keydown', 'keyup', 'keypress']) host.addEventListener(t, (e) => e.stopPropagation());
     const root = host.attachShadow({ mode: 'closed' });
+    const hint = h('div', { className: 'hint' });
+    const say = (t) => { hint.textContent = t; };
+    const updateBtn = h('button', { title: 'check greasyfork for a new version', onclick: async () => {
+        const mine = GM_info.script.version;
+        try {
+            const v = await latest();
+            if (!newer(v, mine)) { updateBtn.textContent = 'update'; return say(`${mine} is the latest`); }
+            say(`installing ${v} | reload the page after`);
+            GM_openInTab(GM_info.script.downloadURL || META_URL.replace('.meta.js', '.user.js'), { active: true });
+        } catch (e) { say('update check failed: ' + e.message); }
+    } }, 'update');
+    latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
     root.append(h('style', {}, PANEL_CSS), h('div', { className: 'p', onkeydown: (e) => e.key === 'Escape' && closePanel() },
-        h('b', {}, 'flush'),
+        h('div', { className: 'top' }, h('b', {}, 'flush'), updateBtn, h('button', { title: 'close (esc)', onclick: closePanel }, '✕')),
         ...TOGGLES.map(([k, label]) => h('label', {},
             h('input', { type: 'checkbox', checked: !!cfg(k), onchange: (e) => { setCfg(k, e.target.checked); applyFeatures(); } }), label)),
         h('b', {}, 'sponsorblock skip'),
@@ -408,14 +468,17 @@ function buildPanel() {
             const out = h('span', {}, cfg(k) + unit);
             return h('label', { className: 'r' }, label, out,
                 h('input', { type: 'range', min, max, value: cfg(k), oninput: (e) => { out.textContent = e.target.value + unit; setCfg(k, +e.target.value); applyFeatures(); } }));
-        })));
+        }),
+        ...(GM_info.isIncognito ? [h('b', {}, 'yt-dlp'),
+            h('button', { className: 'wide', title: 'save youtube.com cookies as Downloads/youtube-cookies.txt', onclick: () => saveCookies(say) }, 'get cookies')] : []),
+        hint));
     return host;
 }
 function closePanel() { panel?.remove(); panel = null; }
 function togglePanel() {
     if (panel) return closePanel();
     panel = buildPanel();
-    Object.assign(panel.style, { right: '20px', top: '70px' });
+    Object.assign(panel.style, { right: '10px', bottom: '64px' });
     (document.fullscreenElement || document.body).append(panel);
 }
 
@@ -434,14 +497,17 @@ function main() {
     hideStyle.disabled = !cfg('hide');
     GM_addStyle(`.custom-yt-btn svg { pointer-events: none; }
 .flush-sb-markers { position: absolute; inset: 0; pointer-events: none; z-index: 40; }
-.flush-sb-markers > div { position: absolute; top: 0; height: 100%; opacity: 0.8; }`);
+.flush-sb-markers > div { position: absolute; top: 0; height: 100%; opacity: 0.8; }
+#flush-pill { position: fixed; right: 10px; bottom: 36px; z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333;
+    border-radius: 12px; padding: 3px 10px; font: 12px system-ui; cursor: pointer; opacity: .7; }
+#flush-pill:hover { opacity: 1; }`);
 
     GM_registerMenuCommand('settings', () => togglePanel());
 
     document.addEventListener('keydown', handleSeekKey, true);
     document.addEventListener('wheel', handleWheel, { capture: true, passive: false });
     document.addEventListener('mousedown', (e) => {
-        if (panel && !e.composedPath().includes(panel)) closePanel();
+        if (panel && !e.composedPath().some(n => n === panel || n.id === 'flush-pill')) closePanel();
     }, true);
     document.addEventListener('timeupdate', handleTime, true); // media events don't bubble, capture sees them
     window.addEventListener('yt-navigate-finish', () => {
@@ -458,9 +524,13 @@ function main() {
         if (applyTimer) return;
         applyTimer = setTimeout(() => { applyTimer = 0; applyFeatures(); }, 250);
     };
-    const observe = () => { new MutationObserver(scheduleApply).observe(document.body, { childList: true, subtree: true }); applyFeatures(); loadSegments(); };
+    const observe = () => {
+        // sits above mark's pill, which holds the corner
+        document.body.append(h('button', { id: 'flush-pill', title: 'flush settings', onclick: togglePanel }, 'flush'));
+        new MutationObserver(scheduleApply).observe(document.body, { childList: true, subtree: true }); applyFeatures(); loadSegments();
+    };
     document.body ? observe() : document.addEventListener('DOMContentLoaded', observe, { once: true });
 }
 
-if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, HIDE, segmentAt };
+if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, HIDE, segmentAt, newer, cookieFile };
 else main();
