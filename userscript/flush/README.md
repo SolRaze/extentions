@@ -3,7 +3,7 @@ flush
 youtube player userscript | seek | miniplayer | gestures | sponsorblock | cpu tamer | hidden page clutter | cookies for yt-dlp | playlists tagged in mark
 
 features
-hide elements | uBlock youtube filters as css | 22 selectors in HIDE
+hidden | uBlock youtube filters as css | one switch per group | logo, menu, create and bell | profile picture | sidebar extras | buttons over the video | donations, shopping, carousels | ask button
 cpu tamer | timer callbacks on animation frames | applies on reload
 seek buttons | , and . keys | 1-60s step
 miniplayer button | i key
@@ -26,10 +26,10 @@ export | Downloads/flush-playlists.json | library + mark tags
 store | tampermonkey storage flush.library | flush.sent pairs mark has been sent
 
 settings
-flush pill bottom right, above mark's | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
+flush pill top right, where the profile picture sits | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
 update | checks greasyfork when the panel opens, label shows the new version | click opens tampermonkey's install page | reload after
-on/off per feature | sponsorblock categories and markers | seek step | gesture step 1-20% | applies live | cpu tamer on reload
-all on by default | sponsorblock: sponsor, self promotion, subscribe reminder | kept in tampermonkey storage
+sections | player | sponsorblock skip | hidden | performance | yt-dlp in private tabs | applies live | cpu tamer on reload
+all on by default | a hide turned off in 1.6 or earlier keeps every group off | sponsorblock: sponsor, self promotion, subscribe reminder | kept in tampermonkey storage
 
 gotchas
 hide selectors are youtube's generated class names | a deploy renames them | stale ones just stop hiding

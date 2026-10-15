@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.5
+// @version      1.6
 // @description  seek buttons and keys, miniplayer button, scroll gestures, sponsorblock skipping, cpu tamer, a decluttered youtube and the account's playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -25,31 +25,44 @@
 // @updateURL https://update.greasyfork.org/scripts/598191/flush.meta.js
 // ==/UserScript==
 
-// YouTube page elements hidden while the hide option is on (default). Same rules as the uBlock
+// YouTube page elements hidden, one switch per group, all on by default. Same rules as the uBlock
 // filters, so a YouTube deploy that renames a class just stops hiding that element.
 const HIDE = [
-    '.yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-leading.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next',
-    '.yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-only-default.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next',
-    'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(1)',
-    'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(4)',
-    'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(5)',
-    'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(6)',
-    'ytd-mini-guide-entry-renderer.ytd-mini-guide-renderer.style-scope:nth-of-type(2)',
-    '#guide-links-primary',
-    '#guide-links-secondary',
-    '#copyright',
-    '.ytd-guide-entry-renderer.style-scope.guide-icon',
-    '#logo',
-    '#header > .ytd-app.style-scope',
-    '#icon > .yt-icon-button.style-scope',
-    '.ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextOverlay.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost',
-    'yt-button-shape > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost',
-    '.ytd-masthead.style-scope > yt-button-shape > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconOnlyDefault.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextText.ytSpecButtonShapeNextHost',
-    '.ytd-watch-flexy.style-scope > .ytd-donation-unavailable-renderer.style-scope',
-    'ytd-badge-supported-renderer.ytd-watch-metadata.style-scope > .ytBadgeSupportedRendererHost > .ytBadgeSupportedRendererBadgeShape.badge-shape > .ytMetadataBadgeRendererHost > .ytBadgeShapeTypography.ytBadgeShapeCommerce.ytBadgeShapeHost > .ytBadgeShapeText',
-    '.ytVideoMetadataCarouselViewModelHost',
-    '#teaser-carousel',
-    '.you-chat-entrypoint-button.ytd-menu-renderer.style-scope.ytSpecButtonViewModelHost',
+    ['masthead', 'logo, menu, create and bell', [
+        '#logo',
+        '#header > .ytd-app.style-scope',
+        '#icon > .yt-icon-button.style-scope',
+        'yt-button-shape > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost',
+        '.ytd-masthead.style-scope > yt-button-shape > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconOnlyDefault.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextText.ytSpecButtonShapeNextHost',
+    ]],
+    ['profile', 'profile picture', [
+        'ytd-masthead ytd-topbar-menu-button-renderer:has(#avatar-btn)',
+    ]],
+    ['sidebar', 'sidebar extras and footer', [
+        'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(1)',
+        'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(4)',
+        'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(5)',
+        'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(6)',
+        'ytd-mini-guide-entry-renderer.ytd-mini-guide-renderer.style-scope:nth-of-type(2)',
+        '#guide-links-primary',
+        '#guide-links-secondary',
+        '#copyright',
+        '.ytd-guide-entry-renderer.style-scope.guide-icon',
+    ]],
+    ['overlay', 'buttons over the video', [
+        '.yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-leading.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next',
+        '.yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-only-default.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next',
+        '.ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextOverlay.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost',
+    ]],
+    ['watch', 'donations, shopping and carousels', [
+        '.ytd-watch-flexy.style-scope > .ytd-donation-unavailable-renderer.style-scope',
+        'ytd-badge-supported-renderer.ytd-watch-metadata.style-scope > .ytBadgeSupportedRendererHost > .ytBadgeSupportedRendererBadgeShape.badge-shape > .ytMetadataBadgeRendererHost > .ytBadgeShapeTypography.ytBadgeShapeCommerce.ytBadgeShapeHost > .ytBadgeShapeText',
+        '.ytVideoMetadataCarouselViewModelHost',
+        '#teaser-carousel',
+    ]],
+    ['ask', 'ask (ai chat) button', [
+        '.you-chat-entrypoint-button.ytd-menu-renderer.style-scope.ytSpecButtonViewModelHost',
+    ]],
 ];
 
 // Pure helpers (exported for selftest)
@@ -157,9 +170,10 @@ const editAction = (o) => o.op === 'add' ? { action: 'ACTION_ADD_VIDEO', addedVi
     : o.set ? { action: 'ACTION_REMOVE_VIDEO', setVideoId: o.set } : { action: 'ACTION_REMOVE_VIDEO_BY_VIDEO_ID', removedVideoId: o.id };
 
 // Settings, all in tampermonkey storage. Toggles default on.
-const DEFAULTS = { hide: true, cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
+const DEFAULTS = { cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
     'sb.sponsor': true, 'sb.selfpromo': true, 'sb.interaction': true, 'sb.intro': false, 'sb.outro': false, 'sb.preview': false, 'sb.filler': false, 'sb.music_offtopic': false, 'sb-markers': false };
-const cfg = (k) => GM_getValue('flush.' + k, DEFAULTS[k]);
+// flush.hide is the all-groups switch of 1.6 and earlier, so a hide turned off there stays off
+const cfg = (k) => GM_getValue('flush.' + k, k.startsWith('hide.') ? GM_getValue('flush.hide', true) : DEFAULTS[k]);
 const setCfg = (k, v) => GM_setValue('flush.' + k, v);
 
 /*
@@ -467,9 +481,7 @@ function handleTime(e) {
 }
 
 // Settings panel. Every change saves and applies at once, except the cpu tamer.
-const TOGGLES = [['hide', 'hide clutter'], ['seek', 'seek buttons and , . keys'], ['miniplayer', 'miniplayer button'], ['gesture', 'wheel gestures'], ['cputamer', 'cpu tamer (reload)']];
 const SB_CATEGORIES = [['sponsor', 'sponsor'], ['selfpromo', 'self promotion'], ['interaction', 'subscribe reminder'], ['intro', 'intro'], ['outro', 'outro'], ['preview', 'preview | recap'], ['filler', 'filler'], ['music_offtopic', 'non-music in music']];
-const RANGES = [['seek-step', 'seek step', 1, 60, 's'], ['gesture-sensitivity', 'gesture step', 1, 20, '%']];
 const PANEL_CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; font: 13px/1.4 system-ui, sans-serif; color: inherit; }
@@ -487,6 +499,14 @@ label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 input { accent-color: #4b6bfb; margin: 0; }
 .hint { font-size: 11px; opacity: .45; overflow-wrap: anywhere; }
 .hint:empty { display: none; }
+`;
+
+// Same look as mark's .pill-open, in the masthead's top right where the profile picture sits.
+const PILL_CSS = `
+:host { all: initial; }
+button { position: fixed; right: 10px; top: 17px; z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333;
+    border-radius: 12px; padding: 3px 10px; font: 12px system-ui; line-height: normal; cursor: pointer; opacity: .7; box-sizing: border-box; }
+button:hover { opacity: 1; }
 `;
 
 // Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.
@@ -736,20 +756,26 @@ function buildPanel() {
         } catch (e) { say('update check failed: ' + e.message); }
     } }, 'update');
     latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
+    const toggle = (k, label) => h('label', {},
+        h('input', { type: 'checkbox', checked: !!cfg(k), onchange: (e) => { setCfg(k, e.target.checked); applyFeatures(); } }), label);
+    const range = (k, label, min, max, unit) => {
+        const out = h('span', {}, cfg(k) + unit);
+        return h('label', { className: 'r' }, label, out,
+            h('input', { type: 'range', min, max, value: cfg(k), oninput: (e) => { out.textContent = e.target.value + unit; setCfg(k, +e.target.value); applyFeatures(); } }));
+    };
     root.append(h('style', {}, PANEL_CSS), h('div', { className: 'p', onkeydown: (e) => e.key === 'Escape' && closePanel() },
         h('div', { className: 'top' }, h('b', {}, 'flush'), h('button', { title: 'the account\'s playlists', onclick: openLibrary }, 'playlists'), updateBtn, h('button', { title: 'close (esc)', onclick: closePanel }, '✕')),
-        ...TOGGLES.map(([k, label]) => h('label', {},
-            h('input', { type: 'checkbox', checked: !!cfg(k), onchange: (e) => { setCfg(k, e.target.checked); applyFeatures(); } }), label)),
+        h('b', {}, 'player'),
+        toggle('seek', 'seek buttons and , . keys'), range('seek-step', 'seek step', 1, 60, 's'),
+        toggle('miniplayer', 'miniplayer button (i)'),
+        toggle('gesture', 'wheel gestures'), range('gesture-sensitivity', 'gesture step', 1, 20, '%'),
         h('b', {}, 'sponsorblock skip'),
-        h('label', {}, h('input', { type: 'checkbox', checked: !!cfg('sb-markers'), onchange: (e) => { setCfg('sb-markers', e.target.checked); renderMarkers(); } }), 'seek bar markers'),
-        ...SB_CATEGORIES.map(([c, label]) => h('label', {},
-            h('input', { type: 'checkbox', checked: !!cfg('sb.' + c), onchange: (e) => { setCfg('sb.' + c, e.target.checked); renderMarkers(); } }), label)),
-        h('b', {}, 'steps'),
-        ...RANGES.map(([k, label, min, max, unit]) => {
-            const out = h('span', {}, cfg(k) + unit);
-            return h('label', { className: 'r' }, label, out,
-                h('input', { type: 'range', min, max, value: cfg(k), oninput: (e) => { out.textContent = e.target.value + unit; setCfg(k, +e.target.value); applyFeatures(); } }));
-        }),
+        ...SB_CATEGORIES.map(([c, label]) => toggle('sb.' + c, label)),
+        toggle('sb-markers', 'seek bar markers'),
+        h('b', {}, 'hidden'),
+        ...HIDE.map(([k, label]) => toggle('hide.' + k, label)),
+        h('b', {}, 'performance'),
+        toggle('cputamer', 'cpu tamer (reload)'),
         ...(GM_info.isIncognito ? [h('b', {}, 'yt-dlp'),
             h('button', { className: 'wide', title: 'save youtube.com cookies as Downloads/youtube-cookies.txt', onclick: () => saveCookies(say) }, 'get cookies')] : []),
         hint));
@@ -759,13 +785,13 @@ function closePanel() { panel?.remove(); panel = null; }
 function togglePanel() {
     if (panel) return closePanel();
     panel = buildPanel();
-    Object.assign(panel.style, { right: '10px', bottom: '64px' });
+    Object.assign(panel.style, { right: '10px', top: '46px' });
     (document.fullscreenElement || document.body).append(panel);
 }
 
-let hideStyle;
+let hideStyles = [];
 function applyFeatures() {
-    if (hideStyle) hideStyle.disabled = !cfg('hide');
+    for (const [k, style] of hideStyles) style.disabled = !cfg('hide.' + k);
     cfg('miniplayer') ? ensureMini() : QS('.custom-yt-mini-button')?.remove();
     cfg('seek') ? ensureSeek() : removeSeek();
     renderMarkers();
@@ -774,14 +800,10 @@ function applyFeatures() {
 function main() {
     if (cfg('cputamer')) tame(unsafeWindow);
 
-    hideStyle = GM_addStyle(HIDE.map(sel => `${sel} { display: none !important; }`).join('\n'));
-    hideStyle.disabled = !cfg('hide');
+    hideStyles = HIDE.map(([k, , sels]) => [k, GM_addStyle(sels.map(sel => `${sel} { display: none !important; }`).join('\n'))]);
     GM_addStyle(`.custom-yt-btn svg { pointer-events: none; }
 .flush-sb-markers { position: absolute; inset: 0; pointer-events: none; z-index: 40; }
-.flush-sb-markers > div { position: absolute; top: 0; height: 100%; opacity: 0.8; }
-#flush-pill { position: fixed; right: 10px; bottom: 36px; z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333;
-    border-radius: 12px; padding: 3px 10px; font: 12px system-ui; cursor: pointer; opacity: .7; }
-#flush-pill:hover { opacity: 1; }`);
+.flush-sb-markers > div { position: absolute; top: 0; height: 100%; opacity: 0.8; }`);
 
     GM_registerMenuCommand('settings', () => togglePanel());
     GM_registerMenuCommand('playlists', () => openLibrary());
@@ -807,8 +829,10 @@ function main() {
         applyTimer = setTimeout(() => { applyTimer = 0; applyFeatures(); }, 250);
     };
     const observe = () => {
-        // sits above mark's pill, which holds the corner
-        document.body.append(h('button', { id: 'flush-pill', title: 'flush settings', onclick: togglePanel }, 'flush'));
+        // shadow root keeps youtube's own button css off it, so it renders exactly like mark's pill
+        const pill = h('div', { id: 'flush-pill' });
+        pill.attachShadow({ mode: 'closed' }).append(h('style', {}, PILL_CSS), h('button', { title: 'flush settings', onclick: togglePanel }, 'flush'));
+        document.body.append(pill);
         new MutationObserver(scheduleApply).observe(document.body, { childList: true, subtree: true }); applyFeatures(); loadSegments();
     };
     document.body ? observe() : document.addEventListener('DOMContentLoaded', observe, { once: true });
