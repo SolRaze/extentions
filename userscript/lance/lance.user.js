@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         lance
-// @namespace    https://github.com/SolRaze/extentions/blob/main/userscript/lance 
-// @version      1.1
+// @namespace    https://github.com/SolRaze/extentions/blob/main/userscript/lance
+// @version      1.2
 // @description  exporter, usage tracker, enter-as-newline, injection with saved prompts, per-site settings
 // @author       SolRaze
-// @homepageURL  https://github.com/SolRaze/extensions
-// @supportURL   https://github.com/SolRaze/extensions/issues
+// @homepageURL  https://github.com/SolRaze/extentions
+// @supportURL   https://github.com/SolRaze/extentions/issues
 // @license      MIT
 // @icon         data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMjIgMjIiIGZpbGw9ImN1cnJlbnRDb2xvciIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNNSAxOUgzVjE3SDRWMTZINVYxNUg2VjE0SDVWMTNINlYxMkg3VjExSDlWMTBIMTBWOUgxMVY4SDEzVjdIMTRWNkgxNVY1SDE2VjRIMThWM0gxOVY0SDE4VjZIMTdWN0gxNlY4SDE1VjlIMTRWMTFIMTNWMTJIMTJWM TNIMTFWMTVIMTBWMTZIOVYxN0g4VjE2SDdWMTdINlYxOEg1WiIvPjwvc3ZnPg==
 // @include      *://claude.ai/*
@@ -17,11 +17,47 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
-// @downloadURL https://update.greasyfork.org/scripts/592831/lance.user.js 
+// @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
+// @connect      greasyfork.org
+// @downloadURL https://update.greasyfork.org/scripts/592831/lance.user.js
 // @updateURL https://update.greasyfork.org/scripts/592831/lance.meta.js
 // ==/UserScript==
 
-(function () {
+// Pure helpers (exported for selftest)
+// Dotted versions compared numerically: 1.10 is newer than 1.9.
+const newer = (a, b) => {
+    const x = a.split('.').map(Number), y = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+    return false;
+};
+// Text put in front of the first prompt of a chat: prepend, then the selected prompt, each on its own.
+// '' when there is nothing to add or the input already starts with it.
+const injectPrefix = (prepend, prompt, cur) => {
+    const parts = [prepend, prompt].filter(Boolean);
+    if (!parts.length) return '';
+    const prefix = parts.join('\n\n') + '\n\n';
+    return cur.startsWith(prefix.trim()) ? '' : prefix;
+};
+// yyyymmdd_turns_title, turns zero-padded to 4 so a folder sorts by date then length
+const makeFilename = (title, turns, d = new Date()) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(turns).padStart(4, '0')}_${title}`;
+const csvCell = (t) => `"${String(t).replace(/"/g, '""')}"`;
+// Saved prompts from an import file: valid entries only, a title already saved is replaced.
+function mergePrompts(saved, incoming) {
+    if (!Array.isArray(incoming)) throw new Error('not a list of prompts');
+    const out = [...saved];
+    for (const p of incoming) {
+        if (typeof p?.title !== 'string' || typeof p?.content !== 'string' || !p.title.trim()) continue;
+        const entry = { title: p.title.trim(), content: p.content, enabled: p.enabled !== false };
+        const i = out.findIndex(x => x.title === entry.title);
+        i < 0 ? out.push(entry) : (out[i] = entry);
+    }
+    return out;
+}
+
+if (typeof module !== 'undefined') module.exports = { newer, injectPrefix, makeFilename, csvCell, mergePrompts };
+else (function () {
     'use strict';
 
     const host = window.location.hostname;
@@ -34,11 +70,17 @@
     const LANCE_ICON = `<svg class="lance-pill-icon" viewBox="0 0 22 22" fill="currentColor" aria-hidden="true"><path d="M5 19H3V17H4V16H5V15H6V14H5V13H6V12H7V11H9V10H10V9H11V8H13V7H14V6H15V5H16V4H18V3H19V4H18V6H17V7H16V8H15V9H14V11H13V12H12V13H11V15H10V16H9V17H8V16H7V17H6V18H5Z"/></svg>`;
     const PIN_ICON = `<svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px;"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707l-1.414 1.414a.5.5 0 0 1-.707 0l-2.12-2.121-1.415 1.415 2.122 2.12a.5.5 0 0 1 0 .708l-1.414 1.414a.5.5 0 0 1-.707 0l-4.95-4.95a.5.5 0 0 1 0-.707l1.414-1.414a.5.5 0 0 1 .707 0l2.12 2.121 1.415-1.415-2.121-2.12a.5.5 0 0 1 0-.708L9.475.868a.5.5 0 0 1 .353-.146zM4.464 6.536L3.05 7.95a.5.5 0 0 0 0 .707l4.95 4.95a.5.5 0 0 0 .707 0l1.414-1.414-6.657-6.657z"/></svg>`;
 
+    // claude.ai enforces trusted types; every html string goes through lance's own policy
+    let policy = null;
+    try { policy = window.trustedTypes?.createPolicy('lance', { createHTML: s => s }) || null; } catch (_) {}
+    const trusted = (s) => policy ? policy.createHTML(s) : s;
+    const setHTML = (el, s) => { el.innerHTML = trusted(s); };
+
     const qs = (sel, root = document) => root.querySelector(sel);
     const qsa = (sel, root = document) => [...root.querySelectorAll(sel)];
     function mkEl(tag, opts = {}) {
         const el = document.createElement(tag);
-        if (opts.html)      el.innerHTML   = opts.html;
+        if (opts.html)      setHTML(el, opts.html);
         if (opts.text)      el.textContent = opts.text;
         if (opts.className) el.className   = opts.className;
         if (opts.style)     Object.assign(el.style, opts.style);
@@ -48,8 +90,8 @@
     // ---- config with per-site support ----
     const DEFAULTS = {
         global: {
-            shortcuts:     { ctrl: false, meta: true, alt: false },
-            dockTopRight:  false,
+            shortcuts:     { meta: true },
+            enterNewline:  true,
             pinExport:     false,
         },
         sites: {
@@ -68,7 +110,6 @@
                 const migrated = JSON.parse(JSON.stringify(DEFAULTS));
                 const flat = parsed;
                 if (flat.shortcuts) migrated.global.shortcuts = flat.shortcuts;
-                if (flat.dockTopRight !== undefined) migrated.global.dockTopRight = flat.dockTopRight;
                 if (flat.pinExport !== undefined) migrated.global.pinExport = flat.pinExport;
                 for (const site of ['claude', 'deepseek', 'brave']) {
                     if (flat.injectionEnabled !== undefined) migrated.sites[site].injectionEnabled = flat.injectionEnabled;
@@ -80,6 +121,7 @@
                 }
                 return migrated;
             }
+            parsed.global = { ...DEFAULTS.global, ...parsed.global };
             for (const site of ['claude', 'deepseek', 'brave']) {
                 if (!parsed.sites[site]) parsed.sites[site] = JSON.parse(JSON.stringify(DEFAULTS.sites[site]));
             }
@@ -96,15 +138,13 @@
         return CFG.sites[s] || CFG.sites.claude;
     }
 
-    const INJECTED_KEY = 'lance_injected';
-    function injectionDue() {
-        const sc = siteCfg();
-        if (!sc.injectionEnabled) return false;
-        const prompt = getSelectedPrompt();
-        if (!prompt) return false;
-        try { return sessionStorage.getItem(INJECTED_KEY) !== '1'; } catch(_) { return false; }
+    // deepseek's user bubbles carry a generated class name; a deploy renaming it breaks export and injection there
+    const DS_USER = 'div[class*="fbb737a4"]';
+    // The first prompt of a chat is one sent while the page holds no user message yet, so a new chat in the same tab gets it too
+    function chatEmpty() {
+        if (P === "deepseek") return !qs(DS_USER);
+        return !qs('[data-testid="user-message"]');
     }
-    function markInjected() { try { sessionStorage.setItem(INJECTED_KEY, '1'); } catch(_) {} }
 
     function getSelectedPrompt() {
         const sc = siteCfg();
@@ -160,20 +200,16 @@
         }
     }
 
+    // brave/ask starts its chats from the search box, outside this input, so it gets no injection
+    const INJECTS = P === "claude" || P === "deepseek";
     function applyInjectionIfNeeded() {
-        if (P === "brave") return false;
-        if (!injectionDue()) return false;
+        if (!INJECTS || !siteCfg().injectionEnabled || !chatEmpty()) return false;
         const el = getChatInput();
         if (!el) return false;
         const cur = getInputText(el);
         if (!cur) return false;
-        const sc = siteCfg();
-        let prefix = sc.prepend ? sc.prepend + '\n\n' : '';
-        const prompt = getSelectedPrompt();
-        if (prompt) prefix += prompt + '\n\n';
+        const prefix = injectPrefix(siteCfg().prepend, getSelectedPrompt(), cur);
         if (!prefix) return false;
-        if (cur.startsWith(prefix.slice(0, 12))) return false;
-        markInjected();
         prependToInput(el, prefix);
         return true;
     }
@@ -208,12 +244,13 @@
 
     function getEventTarget(e) { return e.composedPath ? e.composedPath()[0] || e.target : e.target; }
     function isComposing(e) { return e.isComposing || e.keyCode === 229; }
-    function isEditableTarget(t) { return /INPUT|TEXTAREA|SELECT/.test(t.tagName) || (t.getAttribute && t.getAttribute("contenteditable") === "true"); }
 
     window.addEventListener("keydown", e => {
         if (isComposing(e)) return;
         const t = getEventTarget(e);
-        if (e.key === "Enter" && !e.ctrlKey && !e.shiftKey && !e.metaKey && !e.altKey && isEditableTarget(t)) {
+        const input = getChatInput();
+        const inChat = !!input && (input === t || input.contains(t));
+        if (CFG.global.enterNewline && e.key === "Enter" && !e.ctrlKey && !e.shiftKey && !e.metaKey && !e.altKey && inChat) {
             e.preventDefault();
             e.stopPropagation();
             if (t.tagName === "TEXTAREA") {
@@ -228,7 +265,7 @@
             }
             return;
         }
-        if (CFG.global.shortcuts.meta && e.key === "Enter" && e.metaKey && !e.ctrlKey && !e.altKey && isEditableTarget(t)) {
+        if (CFG.global.shortcuts.meta && e.key === "Enter" && (e.metaKey !== e.ctrlKey) && !e.altKey && inChat) {
             const sb = findSubmit();
             if (sb && !sb.disabled) {
                 e.preventDefault();
@@ -237,6 +274,11 @@
             }
             return;
         }
+    }, true);
+    // a send by mouse injects too: capture runs before the site's own click handler reads the input
+    window.addEventListener("click", e => {
+        const sb = findSubmit();
+        if (sb && sb.contains(getEventTarget(e))) applyInjectionIfNeeded();
     }, true);
 
     // ---- export functions ----
@@ -260,7 +302,10 @@
         const aMsgs = [], uMsgs = [];
         const seenUser = new Set();
         const BTN_SEL = 'div.ds-flex > div.ds-icon-button:nth-child(1)';
-        const USR_SEL = 'div[class*="fbb737a4"]';
+        const USR_SEL = DS_USER;
+        // replies are read through their copy buttons, so the clipboard is put back afterwards
+        let clip = null;
+        try { clip = await navigator.clipboard.readText(); } catch(_) {}
         async function collectVisible() {
             qsa(USR_SEL).forEach(el => {
                 const t = el.textContent.trim();
@@ -311,6 +356,7 @@
             result.push({ role: 'assistant', text: aMsgs[i] });
         }
         for (let i = pairs; i < aMsgs.length; i++) result.push({ role: 'assistant', text: aMsgs[i] });
+        if (clip !== null) try { await navigator.clipboard.writeText(clip); } catch(_) {}
         return result;
     }
 
@@ -330,10 +376,6 @@
         return pairs;
     }
 
-    function makeFilename(title, turnCount) {
-        const d = new Date();
-        return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}${String(turnCount).padStart(4,'0')}_${title}`;
-    }
     function sanitize(t) { return (t || document.title || "Export").trim().replace(/[\/\\\?\%\*\:\|"<>\.]/g, "_"); }
     function getTitle() {
         if (P === "deepseek") {
@@ -345,7 +387,7 @@
     }
 
     function toMd(html) {
-        const doc = new DOMParser().parseFromString(html, "text/html");
+        const doc = new DOMParser().parseFromString(trusted(html), "text/html");
         const isClaude = P === "claude", isDS = P === "deepseek";
         qsa("span.katex-html", doc).forEach(e => e.remove());
         qsa("mrow", doc).forEach(e => e.remove());
@@ -360,14 +402,14 @@
             qsa("pre", doc).forEach(pre => {
                 const code = qs("code", pre);
                 const type = code ? Array.from(code.classList).find(c => c.startsWith("language-"))?.replace("language-","") || "" : "";
-                pre.innerHTML = `\n\`\`\`${type}\n${code ? code.textContent : pre.textContent}\n\`\`\`\n`;
+                pre.textContent = `\n\`\`\`${type}\n${code ? code.textContent : pre.textContent}\n\`\`\`\n`;
             });
         } else if (isDS) {
             qsa("pre", doc).forEach(pre => {
                 const code = qs("code", pre);
                 let type = code ? Array.from(code.classList).find(c => c.startsWith("language-"))?.replace("language-","") || "" : "";
                 if (!type) type = qs('span.code-lang,span[class*="lang"],div[class*="code-header"] span', pre.closest("div"))?.textContent.trim() || "";
-                pre.innerHTML = `\n\`\`\`${type}\n${code ? code.textContent : pre.textContent}\n\`\`\`\n`;
+                pre.textContent = `\n\`\`\`${type}\n${code ? code.textContent : pre.textContent}\n\`\`\`\n`;
             });
             qsa('div[class*="think"],details.think,div.ds-think', doc).forEach(e => rp(e, `\n> **[thinking]**\n${e.textContent.trim().split("\n").map(l => `> ${l}`).join("\n")}\n`));
         }
@@ -375,7 +417,7 @@
         qsa("ol", doc).forEach(ol => rp(ol, "\n" + qsa(":scope>li", ol).map((li, i) => `${i+1}. ${li.textContent.trim()}`).join("\n")));
         for (let i = 1; i <= 6; i++) qsa(`h${i}`, doc).forEach(h => rp(h, `\n${"#".repeat(i)} ${h.textContent}\n`));
         qsa("p", doc).forEach(p => rp(p, `\n${p.textContent}\n`));
-        return doc.body.innerHTML.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").trim();
+        return doc.body.textContent.trim();
     }
 
     function extractAttachments(msgEl) {
@@ -425,6 +467,7 @@
         return yaml + pairs.map(p => `## user\n\n${p.q.trim()}\n\n## assistant\n\n${p.a.trim()}\n\n---\n\n`).join("");
     }
 
+    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     function anchorSave(text, mime, filename) {
         const u = URL.createObjectURL(new Blob([text], { type: mime }));
         const a = Object.assign(document.createElement("a"), { href: u, download: filename });
@@ -439,8 +482,8 @@
             title = getTitle(); const pl = groupDeepSeekPairs(items);
             fname = makeFilename(title, pl.length);
             if (fmt === "json") { c = JSON.stringify(pl, null, 2); m = "application/json"; }
-            else if (fmt === "csv") { c = "Q,A\n" + pl.map(p => `"${p.q.replace(/"/g,'""')}","${p.a.replace(/"/g,'""')}"`).join("\n"); m = "text/csv"; }
-            else if (fmt === "html") { c = `<html><body style="font-family:sans-serif;max-width:800px;margin:auto;padding:30px;line-height:1.7;">${pl.map(p => `<div style="background:#f4f4f5;padding:15px;border-radius:12px;margin:20px 0;"><b>Q:</b> ${p.q}</div><div><b>A:</b> ${p.a}</div><hr/>`).join("")}</body></html>`; m = "text/html"; }
+            else if (fmt === "csv") { c = "Q,A\n" + pl.map(p => `${csvCell(p.q)},${csvCell(p.a)}`).join("\n"); m = "text/csv"; }
+            else if (fmt === "html") { c = `<html><body style="font-family:sans-serif;max-width:800px;margin:auto;padding:30px;line-height:1.7;">${pl.map(p => `<div style="background:#f4f4f5;padding:15px;border-radius:12px;margin:20px 0;"><b>Q:</b> ${esc(p.q)}</div><div style="white-space:pre-wrap"><b>A:</b> ${esc(p.a)}</div><hr/>`).join("")}</body></html>`; m = "text/html"; }
             else if (fmt === "md") { c = mdDoc(title, pl); m = "text/markdown"; }
             else { c = pl.map(p => `\nQ:\n${p.q}\n\nA:\n${p.a}\n\n---\n`).join(""); }
         } else {
@@ -451,7 +494,7 @@
                 c = JSON.stringify(res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a.push({ q: md(x), a: md(res[i + 1]) }); return a; }, []), null, 2);
                 m = "application/json";
             } else if (fmt === "csv") {
-                c = "Q,A\n" + res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a += `"${md(x).replace(/"/g,'""')}","${md(res[i + 1]).replace(/"/g,'""')}"\n`; return a; }, "");
+                c = "Q,A\n" + res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a += `${csvCell(md(x))},${csvCell(md(res[i + 1]))}\n`; return a; }, "");
                 m = "text/csv";
             } else if (fmt === "html") {
                 c = `<html><body style="font-family:sans-serif;max-width:800px;margin:auto;padding:30px;line-height:1.7;">${res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a += `<div style="background:#f4f4f5;padding:15px;border-radius:12px;margin:20px 0;"><b>Q:</b> ${x.innerHTML}</div><div><b>A:</b> ${res[i + 1].innerHTML}</div><hr/>`; return a; }, "")}</body></html>`;
@@ -469,7 +512,7 @@
                 c = res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a += `\nQ:\n${txt(x)}\n\nA:\n${txt(res[i + 1])}\n\n---\n`; return a; }, "");
             }
         }
-        anchorSave(c.replace(/&amp;/g, "&"), m, `${fname}.${fmt}`);
+        anchorSave(c, m, `${fname}.${fmt}`);
     }
 
     // ---- export pill with pin circle and edge mirroring ----
@@ -478,12 +521,12 @@
 
         // Main pill
         const pillInner = mkEl('div', { className: 'lance-pill-inner' });
-        pillInner.innerHTML = `${LANCE_ICON}<span class="lance-pill-text">lance</span>`;
+        setHTML(pillInner, `${LANCE_ICON}<span class="lance-pill-text">lance</span>`);
         box.appendChild(pillInner);
 
         // Pin circle button
         const pinCircle = mkEl('button', { className: 'lance-pin-circle' });
-        pinCircle.innerHTML = PIN_ICON;
+        setHTML(pinCircle, PIN_ICON);
         pinCircle.title = 'Toggle pin position';
         box.appendChild(pinCircle);
 
@@ -494,23 +537,20 @@
         const injToggle = mkEl('button', { className: 'lance-menu-item' });
         const sc = siteCfg();
         const injOn = sc.injectionEnabled;
-        injToggle.innerHTML = `<span>injection</span><span class="lance-badge">${injOn ? '⚡ on' : '⚡ off'}</span>`;
+        setHTML(injToggle, `<span>injection</span><span class="lance-badge">${injOn ? '⚡ on' : '⚡ off'}</span>`);
         injToggle.onclick = e => {
             e.stopPropagation();
             sc.injectionEnabled = !sc.injectionEnabled;
             saveCfg(CFG);
-            injToggle.innerHTML = `<span>injection</span><span class="lance-badge">${sc.injectionEnabled ? '⚡ on' : '⚡ off'}</span>`;
+            setHTML(injToggle, `<span>injection</span><span class="lance-badge">${sc.injectionEnabled ? '⚡ on' : '⚡ off'}</span>`);
             box.classList.remove('open');
-            if (!sc.injectionEnabled) {
-                try { sessionStorage.removeItem(INJECTED_KEY); } catch(_) {}
-            }
         };
-        menu.appendChild(injToggle);
+        if (INJECTS) menu.appendChild(injToggle);
 
         // ---- export parent with submenu ----
         const exportParent = mkEl('div', { className: 'lance-menu-parent' });
         const parentBtn = mkEl('button', { className: 'lance-menu-item' });
-        parentBtn.innerHTML = `<span>export</span><span class="lance-badge">▸</span>`;
+        setHTML(parentBtn, `<span>export</span><span class="lance-badge">▸</span>`);
         exportParent.appendChild(parentBtn);
 
         const submenu = mkEl('div', { className: 'lance-submenu' });
@@ -523,7 +563,7 @@
         ];
         formats.forEach(([name, badge, fn]) => {
             const b = mkEl('button', { className: 'lance-menu-item' });
-            b.innerHTML = `<span>${name}</span><span class="lance-badge">${badge}</span>`;
+            setHTML(b, `<span>${name}</span><span class="lance-badge">${badge}</span>`);
             b.onclick = e => {
                 e.stopPropagation();
                 box.classList.remove('open');
@@ -559,7 +599,7 @@
 
         // settings button
         const settingsBtn = mkEl('button', { className: 'lance-menu-item' });
-        settingsBtn.innerHTML = `<span>settings</span><span class="lance-badge">⚙</span>`;
+        setHTML(settingsBtn, `<span>settings</span><span class="lance-badge">⚙</span>`);
         settingsBtn.onclick = e => { e.stopPropagation(); box.classList.remove('open'); openDashboard(); };
         menu.appendChild(settingsBtn);
 
@@ -572,7 +612,6 @@
             pinCircle.classList.toggle('pinned', pinned);
             pinCircle.title = pinned ? 'Unpin position' : 'Pin position';
             box.onmousedown = pinned ? null : (e => {
-                if (CFG.global.dockTopRight) return;
                 drag = true; moved = false; x0 = e.clientX; y0 = e.clientY; l0 = box.offsetLeft; t0 = box.offsetTop; e.preventDefault();
             });
         }
@@ -668,7 +707,7 @@
             }
             // open menu – set initial position
             const sc2 = siteCfg();
-            injToggle.innerHTML = `<span>injection</span><span class="lance-badge">${sc2.injectionEnabled ? '⚡ on' : '⚡ off'}</span>`;
+            setHTML(injToggle, `<span>injection</span><span class="lance-badge">${sc2.injectionEnabled ? '⚡ on' : '⚡ off'}</span>`);
             box.classList.add('open');
             document.querySelectorAll('.lance-menu-parent.open').forEach(el => el.classList.remove('open'));
             // position it
@@ -689,7 +728,7 @@
 
         // ---- initial positioning ----
         const x = GM_getValue('export_x', window.innerWidth - 160);
-        const y = GM_getValue('export_y', 8);   // moved further up (from 15 to 8)
+        const y = GM_getValue('export_y', 8);
         box.style.left = Math.max(0, Math.min(x, window.innerWidth - 120)) + 'px';
         box.style.top  = Math.max(0, Math.min(y, window.innerHeight - 60)) + 'px';
         // apply edge class
@@ -713,7 +752,7 @@
         }
     }
 
-    // ---- claude usage tracker (unchanged) ----
+    // ---- claude usage tracker ----
     const UT = (() => {
         if (P !== 'claude') return { init() {} };
 
@@ -778,7 +817,7 @@
 
         function buildUI() {
             const root = document.createElement('div'); root.id = ID;
-            root.innerHTML = `<div class="t"><div class="b"><div class="f" data-role="tf"></div></div></div><div class="p">${ROWS.map(([,label], i) => `<div class="r" data-i="${i}"><div class="hh"><span class="l">${label}</span><span class="m" data-role="m"></span></div><div class="k"><div class="f" data-role="f"></div></div></div>`).join('')}</div>`;
+            setHTML(root, `<div class="t"><div class="b"><div class="f" data-role="tf"></div></div></div><div class="p">${ROWS.map(([,label], i) => `<div class="r" data-i="${i}"><div class="hh"><span class="l">${label}</span><span class="m" data-role="m"></span></div><div class="k"><div class="f" data-role="f"></div></div></div>`).join('')}</div>`);
             const tf = root.querySelector('[data-role="tf"]');
             const rEls = [...root.querySelectorAll('.r')];
             const metas = rEls.map(r => r.querySelector('[data-role="m"]'));
@@ -862,12 +901,20 @@
         };
     })();
 
-    // ---- settings dashboard (unchanged) ----
+    // ---- settings dashboard ----
+    // Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.
+    const META_URL = 'https://update.greasyfork.org/scripts/592831/lance.meta.js';
+    const latest = () => new Promise((ok, fail) => GM_xmlhttpRequest({
+        method: 'GET', url: META_URL + '?t=' + Date.now(), timeout: 15000,
+        onload: r => { const v = /@version\s+(\S+)/.exec(r.responseText); v ? ok(v[1]) : fail(new Error('no version in meta')); },
+        onerror: () => fail(new Error('greasyfork unreachable')), ontimeout: () => fail(new Error('greasyfork timed out')),
+    }));
+
     function openDashboard() {
         const existing = qs('#lance-dashboard');
         if (existing) { existing.remove(); qs('#lance-overlay')?.remove(); return; }
 
-        const bg = "#18181b", bg3 = "#27272c", fg = "#e4e4e8", fg2 = "rgba(228,228,232,0.5)", bd = "rgba(255,255,255,0.07)", wht = "#ffffff";
+        const bg = "#1c1c20", bg3 = "#27272c", fg = "#e4e4e8", fg2 = "rgba(228,228,232,0.5)", bd = "rgba(255,255,255,0.07)", wht = "#ffffff";
 
         const ov = document.createElement('div'); ov.id = 'lance-overlay';
         Object.assign(ov.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.6)', zIndex: '2147483645', backdropFilter: 'blur(2px)' });
@@ -923,7 +970,23 @@
         closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = wht; });
         closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = fg2; });
         closeBtn.onclick = () => { dlg.remove(); ov.remove(); };
-        hdr.appendChild(siteLabel); hdr.appendChild(closeBtn);
+        const hint = document.createElement('div');
+        Object.assign(hint.style, { fontSize: '11px', color: fg2, overflowWrap: 'anywhere' });
+        const say = (t) => { hint.textContent = t; };
+        const updateBtn = document.createElement('button'); updateBtn.textContent = 'update';
+        updateBtn.title = 'check greasyfork for a new version';
+        Object.assign(updateBtn.style, { background: 'none', border: 'none', color: fg2, cursor: 'pointer', fontSize: '12px', marginLeft: 'auto', marginRight: '12px' });
+        updateBtn.onclick = async () => {
+            const mine = GM_info.script.version;
+            try {
+                const v = await latest();
+                if (!newer(v, mine)) { updateBtn.textContent = 'update'; return say(`${mine} is the latest`); }
+                say(`installing ${v} | reload the page after`);
+                GM_openInTab(GM_info.script.downloadURL || META_URL.replace('.meta.js', '.user.js'), { active: true });
+            } catch (e) { say('update check failed: ' + e.message); }
+        };
+        latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
+        hdr.appendChild(siteLabel); hdr.appendChild(updateBtn); hdr.appendChild(closeBtn);
         dlg.appendChild(hdr);
 
         const sc = siteCfg();
@@ -934,20 +997,25 @@
             refreshPills();
         })));
 
-        dlg.appendChild(rowEl('cmd / win + enter (global)', toggle(CFG.global.shortcuts.meta ?? DEFAULTS.global.shortcuts.meta, v => {
+        dlg.appendChild(rowEl('enter inserts a newline (all sites)', toggle(CFG.global.enterNewline, v => {
+            CFG.global.enterNewline = v;
+            saveCfg(CFG);
+        })));
+
+        dlg.appendChild(rowEl('cmd / ctrl + enter sends (all sites)', toggle(CFG.global.shortcuts.meta, v => {
             CFG.global.shortcuts.meta = v;
             saveCfg(CFG);
         })));
 
-        dlg.appendChild(rowEl('enable injection', toggle(sc.injectionEnabled, v => {
+        const injRow = rowEl('inject into the first prompt', toggle(sc.injectionEnabled, v => {
             sc.injectionEnabled = v;
             saveCfg(CFG);
-            if (!v) { try { sessionStorage.removeItem(INJECTED_KEY); } catch(_) {} }
-        })));
+        }));
+        dlg.appendChild(injRow);
 
         const prependRow = document.createElement('div');
         Object.assign(prependRow.style, { display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px 0', borderBottom: `1px solid ${bd}` });
-        const prependLabel = document.createElement('span'); prependLabel.textContent = 'prepend (always added):'; prependLabel.style.color = fg;
+        const prependLabel = document.createElement('span'); prependLabel.textContent = 'prepend (before the selected prompt):'; prependLabel.style.color = fg;
         const prependInput = document.createElement('textarea');
         prependInput.value = sc.prepend || '';
         Object.assign(prependInput.style, { background: bg3, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: fg, padding: '6px 8px', fontSize: '12px', resize: 'vertical', minHeight: '40px', width: '100%', outline: 'none' });
@@ -964,7 +1032,7 @@
         promptsList.style.display = 'flex'; promptsList.style.flexDirection = 'column'; promptsList.style.gap = '6px';
 
         function renderPrompts() {
-            promptsList.innerHTML = '';
+            promptsList.replaceChildren();
             if (!sc.savedPrompts.length) {
                 const empty = document.createElement('div'); empty.textContent = 'no prompts saved'; Object.assign(empty.style, { fontSize: '12px', color: fg2, padding: '4px 0' });
                 promptsList.appendChild(empty);
@@ -1051,11 +1119,30 @@
         addRow.appendChild(addBtn);
         promptsSection.appendChild(addRow);
 
-        const rearmBtn = document.createElement('button');
-        rearmBtn.textContent = 're-arm injection for this tab';
-        Object.assign(rearmBtn.style, { background: bg3, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: fg, padding: '6px 12px', fontSize: '12px', cursor: 'pointer', margin: '8px 0 4px', width: '100%' });
-        rearmBtn.onclick = () => { try { sessionStorage.removeItem(INJECTED_KEY); } catch(_) {} };
-        dlg.appendChild(rearmBtn);
+        const ioRow = document.createElement('div');
+        Object.assign(ioRow.style, { display: 'flex', gap: '6px', margin: '8px 0 4px' });
+        const ioBtn = (label, onclick) => {
+            const b = document.createElement('button'); b.textContent = label; b.onclick = onclick;
+            Object.assign(b.style, { flex: '1', background: bg3, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: fg, padding: '6px 12px', fontSize: '12px', cursor: 'pointer' });
+            return b;
+        };
+        const fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = '.json,application/json'; fileIn.hidden = true;
+        fileIn.onchange = async () => {
+            const f = fileIn.files[0]; fileIn.value = '';
+            if (!f) return;
+            try {
+                const before = sc.savedPrompts.length;
+                sc.savedPrompts = mergePrompts(sc.savedPrompts, JSON.parse(await f.text()));
+                saveCfg(CFG); renderPrompts();
+                say(`imported | ${sc.savedPrompts.length - before} new, ${sc.savedPrompts.length} saved`);
+            } catch (e) { say('import failed: ' + e.message); }
+        };
+        ioRow.append(
+            ioBtn('import prompts', () => fileIn.click()),
+            ioBtn('export prompts', () => anchorSave(JSON.stringify(sc.savedPrompts, null, 2), 'application/json', `lance-prompts-${P}.json`)),
+            fileIn);
+        dlg.appendChild(ioRow);
+        if (!INJECTS) [injRow, prependRow, promptsSection, ioRow].forEach(el => el.remove());
 
         if (P === 'claude') {
             dlg.appendChild(rowEl('show inline usage bar', toggle(sc.usageTracker ?? true, v => {
@@ -1072,7 +1159,7 @@
         footer.style.color = fg2;
 
         const gfLink = document.createElement('a');
-        gfLink.href = 'https://greasyfork.org/en/scripts/579601-lance';
+        gfLink.href = 'https://greasyfork.org/en/scripts/592831-lance';
         gfLink.target = '_blank';
         gfLink.textContent = 'greasyfork';
         gfLink.style.color = fg2;
@@ -1081,6 +1168,7 @@
         gfLink.addEventListener('mouseleave', () => gfLink.style.color = fg2);
 
         footer.appendChild(gfLink);
+        dlg.appendChild(hint);
         dlg.appendChild(footer);
 
         document.body.appendChild(dlg);
@@ -1135,7 +1223,7 @@
 
         .lance-menu-panel {
             position: absolute; width: max-content; min-width: 185px;
-            background: #18181b; border: 1px solid rgba(255,255,255,0.07);
+            background: #1c1c20; border: 1px solid rgba(255,255,255,0.07);
             border-radius: 12px; padding: 4px; display: none; flex-direction: column; gap: 1px;
             box-shadow: 0 12px 40px rgba(0,0,0,0.6);
         }
@@ -1164,7 +1252,7 @@
             display: none;
             position: absolute;
             top: 0;
-            background: #18181b;
+            background: #1c1c20;
             border: 1px solid rgba(255,255,255,0.07);
             border-radius: 12px;
             padding: 4px;
@@ -1179,9 +1267,6 @@
     `);
 
     GM_registerMenuCommand("settings", openDashboard);
-
-    if (typeof trustedTypes !== "undefined" && trustedTypes.defaultPolicy === null)
-        trustedTypes.createPolicy("default", { createHTML: s => s, createScriptURL: s => s, createScript: s => s });
 
     setTimeout(() => {
         buildExportPill();
