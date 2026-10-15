@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.7
+// @version      2.8
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -212,6 +212,37 @@ function merge(json) {
     commit();
     return n;
 }
+// Page bridge for the other scripts on the same page (flush). DOM events carrying JSON strings, the one
+// detail every userscript world passes intact.
+//   mark:add  {<url>: {tags, title?, type?}}  unions tags into the store, never removes one
+//   mark:get  {id, prefix}                    answered by mark:tags {id, tags: {<url>: [tags]}} for keys starting with prefix
+// An entry's own title and type win over the ones sent.
+function addTags(entries) {
+    let n = 0;
+    const now = Date.now();
+    for (let [key, v] of Object.entries(entries || {})) {
+        const tags = (Array.isArray(v?.tags) ? v.tags : []).filter(t => typeof t === 'string' && t);
+        if (!tags.length) continue;
+        key = rekey(key);
+        const old = store.data[key], next = [...new Set([...(old?.tags || []), ...tags])];
+        if (old && next.length === old.tags.length) continue;
+        const meta = { ...(v.title && { title: String(v.title) }), ...(v.type && { type: String(v.type) }), ...old?.meta };
+        store.data[key] = { tags: next, meta: { ...meta, created: old?.meta?.created || now, updated: now } };
+        n++;
+    }
+    if (n) commit();
+    return n;
+}
+const tagsWith = (prefix) => Object.fromEntries(Object.entries(store.data).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => [k, v.tags]));
+function bridge() {
+    const parse = (e) => { try { return JSON.parse(e.detail); } catch { return null; } };
+    document.addEventListener('mark:add', (e) => addTags(parse(e)));
+    document.addEventListener('mark:get', (e) => {
+        const q = parse(e);
+        if (typeof q?.prefix === 'string') document.dispatchEvent(new CustomEvent('mark:tags', { detail: JSON.stringify({ id: q.id, tags: tagsWith(q.prefix) }) }));
+    });
+}
+
 // Dotted versions compared numerically: 2.10 is newer than 2.9.
 const newer = (a, b) => {
     const x = a.split('.').map(Number), y = b.split('.').map(Number);
@@ -621,6 +652,7 @@ function main() {
     }, true);
 
     GM_registerMenuCommand('mark', openLib);
+    bridge();
     // Other tabs saving: pick up their store so every tab shows the same tags.
     GM_addValueChangeListener(STORE, (k, o, v, remote) => { if (remote) { store = v || fresh(); refresh(); } });
 
@@ -629,5 +661,5 @@ function main() {
     scan();
 }
 
-if (typeof module !== 'undefined') module.exports = { newer, norm, load, match, linkMatch, merge, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _store: () => store.data };
+if (typeof module !== 'undefined') module.exports = { newer, norm, load, match, linkMatch, merge, addTags, tagsWith, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _store: () => store.data };
 else main();

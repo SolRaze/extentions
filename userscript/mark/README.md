@@ -38,6 +38,12 @@ civitai.red into civitai.com | regional pinterest into pinterest.com
 tracking params dropped | utm_* fbclid gclid si igsh ref_src
 tags from one site show on links to it from another | a github repo on hacker news
 
+bridge
+other scripts on the page talk to mark through dom events | json string detail
+mark:add {<url>: {tags, title?, type?}} | unions tags, never removes | the entry's own title wins
+mark:get {id, prefix} | answered by mark:tags {id, tags: {<url>: [tags]}} | every key starting with prefix
+flush uses it | youtube playlists become tags
+
 store
 tampermonkey storage `mark.store` | utags shape | a utags export imports here
 import | newer entry wins whole | removed tags and utags deletions carry over | undo reverts it

@@ -3,7 +3,7 @@ const assert = require('assert');
 global.GM_setValue = () => {};
 let gmStore;
 global.GM_getValue = () => gmStore;
-const { newer, match, linkMatch, norm, load, merge, effectsOf, renameTag, retag, deleteTag, _setStore } = require('./mark.user.js');
+const { newer, addTags, tagsWith, _store, match, linkMatch, norm, load, merge, effectsOf, renameTag, retag, deleteTag, _setStore } = require('./mark.user.js');
 
 const key = (href, text) => match(href, text)?.key ?? null;
 const type = (href, text) => match(href, text)?.type ?? null;
@@ -106,6 +106,15 @@ gmStore = { data: { 'https://www.youtube.com/watch?v=jNQXAC9IVRw': { tags: ['a']
 load();
 assert.deepStrictEqual(Object.keys(require('./mark.user.js')._store()).sort(), ['https://x.com/jack', v], 'www, slash, case and youtu.be fold');
 
+
+// addTags: unions, never removes, keeps the entry's own title, rekeys youtu.be onto the watch key
+_setStore({ data: { 'https://youtube.com/watch?v=aaaaaaaaaaa': { tags: ['mine'], meta: { title: 'own', type: 'video' } } }, meta: {} });
+assert.strictEqual(addTags({ 'https://youtu.be/aaaaaaaaaaa': { tags: ['music', 'mine'], title: 'sent' }, 'https://youtube.com/watch?v=bbbbbbbbbbb': { tags: [] } }), 1);
+assert.deepStrictEqual(_store()['https://youtube.com/watch?v=aaaaaaaaaaa'].tags, ['mine', 'music']);
+assert.strictEqual(_store()['https://youtube.com/watch?v=aaaaaaaaaaa'].meta.title, 'own');
+assert.ok(!_store()['https://youtube.com/watch?v=bbbbbbbbbbb'], 'no tags, no entry');
+assert.strictEqual(addTags({ 'https://youtube.com/watch?v=aaaaaaaaaaa': { tags: ['music'] } }), 0, 'nothing new, no write');
+assert.deepStrictEqual(tagsWith('https://youtube.com/watch?v='), { 'https://youtube.com/watch?v=aaaaaaaaaaa': ['mine', 'music'] });
 
 assert.ok(newer('2.10', '2.9') && !newer('2.1', '2.1') && !newer('2.0', '2.0.1'));
 

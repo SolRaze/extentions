@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.4
-// @description  seek buttons and keys, miniplayer button, scroll gestures, sponsorblock skipping, cpu tamer and a decluttered youtube
+// @version      1.5
+// @description  seek buttons and keys, miniplayer button, scroll gestures, sponsorblock skipping, cpu tamer, a decluttered youtube and the account's playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -80,6 +80,81 @@ const newer = (a, b) => {
 const cookieFile = (cookies) => ['# Netscape HTTP Cookie File', ...cookies.map(c => [
     (c.httpOnly ? '#HttpOnly_' : '') + c.domain, c.domain.startsWith('.') ? 'TRUE' : 'FALSE', c.path,
     c.secure ? 'TRUE' : 'FALSE', Math.floor(c.expirationDate || 0), c.name, c.value].join('\t')), ''].join('\n');
+
+// Innertube browse replies, playlist pages and the playlists feed alike. Read by shape, not path: videos are
+// lockups of type video, playlists lockups of type playlist, the next page the first continuation token.
+// playlistVideoRenderer is the older playlist layout. setVideoId is the entry's id within its playlist;
+// only an owner's view carries it, and removing one copy of a duplicate needs it.
+const DEAD = /^\[(?:deleted|private) video\]$/i;
+const ytText = (o) => o?.content ?? o?.simpleText ?? o?.runs?.map(r => r.text).join('') ?? '';
+const walk = (o, fn) => { if (o && typeof o === 'object') { fn(o); for (const v of Object.values(o)) walk(v, fn); } };
+function parsePage(json) {
+    const videos = [], playlists = [];
+    let next = null;
+    walk(json, (o) => {
+        const l = o.lockupViewModel, pv = o.playlistVideoRenderer;
+        if (l?.contentId) {
+            const md = l.metadata?.lockupMetadataViewModel, title = ytText(md?.title);
+            if (l.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO') {
+                let set = '', len = '';
+                walk(l, (x) => { set ||= x.setVideoId || ''; len ||= x.thumbnailBadgeViewModel?.text || ''; });
+                const channel = ytText(md?.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text);
+                videos.push({ id: l.contentId, title, channel, len, ...(set && { set }), ...(DEAD.test(title) && { dead: true }) });
+            } else if (/PLAYLIST|ALBUM|PODCAST/.test(l.contentType)) playlists.push({ id: l.contentId, title });
+        } else if (pv?.videoId) {
+            videos.push({ id: pv.videoId, title: ytText(pv.title), channel: ytText(pv.shortBylineText), len: ytText(pv.lengthText),
+                ...(pv.setVideoId && { set: pv.setVideoId }), ...((pv.isPlayable === false || DEAD.test(ytText(pv.title))) && { dead: true }) });
+        }
+        next ||= o.continuationCommand?.token || o.nextContinuationData?.continuation || null;
+    });
+    return { videos, playlists, next };
+}
+
+// The playlist <-> mark tag link: a playlist's title is the tag. Only pairs mark has not been sent yet
+// go to it, so a tag removed in mark stays removed across refreshes and becomes a removal in the plan.
+// Unavailable videos are never sent, their titles are placeholders.
+const videoKey = (id) => `https://youtube.com/watch?v=${id}`;
+const NO_TAG = new Set(['WL']); // watch later is a queue, not a category
+function newPairs(lib, sent) {
+    const entries = {}, nextSent = {};
+    for (const p of lib.playlists) {
+        if (NO_TAG.has(p.id)) continue;
+        const was = new Set(sent[p.id] || []);
+        nextSent[p.id] = [...new Set([...was, ...p.videos.filter(v => !v.dead).map(v => v.id)])];
+        for (const v of p.videos) {
+            if (was.has(v.id) || v.dead) continue;
+            was.add(v.id); // a duplicate tags once
+            (entries[videoKey(v.id)] ||= { tags: [], title: v.title, type: 'video' }).tags.push(p.title);
+        }
+    }
+    return { entries, sent: nextSent };
+}
+// Cleanup for the account's playlists. Remove: unavailable videos, extra copies (needs setVideoId), videos whose
+// playlist tag was removed in mark. Add: videos tagged with a playlist's title in mark. Tag removals only where
+// the tag still exists in mark, so a wiped or missing mark store never empties a playlist. Liked videos is not
+// editable this way, playlists that refused an edit are skipped.
+function planCleanup(lib, tags, sent) {
+    const byTag = new Map();
+    for (const [k, ts] of Object.entries(tags || {})) {
+        const id = k.match(/[?&]v=([\w-]+)/)?.[1];
+        if (id) for (const t of ts) (byTag.get(t) || byTag.set(t, new Set()).get(t)).add(id);
+    }
+    const plan = [];
+    for (const p of lib.playlists) {
+        if (p.id === 'LL' || p.ro) continue;
+        const tagged = byTag.get(p.title), was = new Set(sent[p.id] || []), seen = new Set();
+        for (const v of p.videos) {
+            const why = v.dead ? 'unavailable' : seen.has(v.id) ? (v.set ? 'duplicate' : '')
+                : tagged && was.has(v.id) && !tagged.has(v.id) ? 'untagged in mark' : '';
+            seen.add(v.id);
+            if (why) plan.push({ pl: p.id, op: 'remove', id: v.id, ...(v.set && { set: v.set }), title: v.title, why });
+        }
+        for (const id of tagged || []) if (!seen.has(id)) plan.push({ pl: p.id, op: 'add', id, why: 'tagged in mark' });
+    }
+    return plan;
+}
+const editAction = (o) => o.op === 'add' ? { action: 'ACTION_ADD_VIDEO', addedVideoId: o.id }
+    : o.set ? { action: 'ACTION_REMOVE_VIDEO', setVideoId: o.set } : { action: 'ACTION_REMOVE_VIDEO_BY_VIDEO_ID', removedVideoId: o.id };
 
 // Settings, all in tampermonkey storage. Toggles default on.
 const DEFAULTS = { hide: true, cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
@@ -436,6 +511,212 @@ function saveCookies(say) {
     });
 }
 
+// Innertube with the tab's session, the way youtube's own page calls it. SAPISIDHASH is the auth header
+// youtube derives from the SAPISID cookie; X-Goog-PageId selects a brand account.
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+async function api(path, body) {
+    const yt = unsafeWindow.ytcfg?.data_ || {};
+    const sid = document.cookie.match(/(?:^|; )SAPISID=([^;]+)/)?.[1] || document.cookie.match(/(?:^|; )__Secure-3PAPISID=([^;]+)/)?.[1];
+    const ts = Math.floor(Date.now() / 1000);
+    const hash = sid && [...new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(`${ts} ${sid} ${location.origin}`)))]
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+    const r = await fetch(`/youtubei/v1/${path}?prettyPrint=false`, { method: 'POST', credentials: 'include', body: JSON.stringify({ context: yt.INNERTUBE_CONTEXT, ...body }),
+        headers: { 'content-type': 'application/json', 'x-origin': location.origin, 'x-goog-authuser': String(yt.SESSION_INDEX ?? 0),
+            ...(yt.DELEGATED_SESSION_ID && { 'x-goog-pageid': yt.DELEGATED_SESSION_ID }), ...(hash && { authorization: `SAPISIDHASH ${ts}_${hash}` }),
+            'x-youtube-client-name': String(yt.INNERTUBE_CONTEXT_CLIENT_NAME ?? 1), 'x-youtube-client-version': yt.INNERTUBE_CLIENT_VERSION || '' } });
+    if (!r.ok) throw new Error(`${path} answered ${r.status}`);
+    return r.json();
+}
+// Every page of a browse, 1 s apart.
+async function browseAll(browseId, onPage) {
+    let p = parsePage(await api('browse', { browseId }));
+    for (const seen = new Set(); ; ) {
+        onPage(p);
+        if (!p.next || seen.has(p.next)) return;
+        seen.add(p.next);
+        await sleep(1000);
+        p = parsePage(await api('browse', { continuation: p.next }));
+    }
+}
+
+// mark's bridge, see mark:get in mark.user.js. null when mark is not installed or not answering.
+function askMark(prefix) {
+    return new Promise((ok) => {
+        const id = Math.random().toString(36).slice(2);
+        const on = (e) => { let r; try { r = JSON.parse(e.detail); } catch { return; } if (r?.id === id) { done(); ok(r.tags); } };
+        const done = () => { clearTimeout(t); document.removeEventListener('mark:tags', on); };
+        const t = setTimeout(() => { done(); ok(null); }, 1500);
+        document.addEventListener('mark:tags', on);
+        document.dispatchEvent(new CustomEvent('mark:get', { detail: JSON.stringify({ id, prefix }) }));
+    });
+}
+
+// Library: the account's playlists, read-only until a plan is applied. tampermonkey storage flush.library
+// {at, playlists: [{id, title, ro?, videos: [{id, title, channel, len, set?, dead?}]}]}, flush.sent {playlist id: [video ids]}.
+const LIB_CSS = `
+:host { all: initial; }
+* { box-sizing: border-box; font: 13px/1.4 system-ui, sans-serif; color: inherit; }
+.lib { position: fixed; inset: 0; color: #ddd; background: #0b0b0c; display: flex; flex-direction: column; }
+.bar { display: flex; gap: 6px 12px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #222; flex-wrap: wrap; }
+.group { display: flex; gap: 6px; align-items: center; }
+.filters { flex: 1 1 360px; min-width: 0; }
+.filters select { max-width: 260px; }
+.filters input { flex: 1 1 120px; min-width: 0; }
+button, select, input { background: #1a1a1d; color: #ddd; border: 1px solid #333; border-radius: 6px; padding: 4px 8px; }
+button { cursor: pointer; }
+button:hover { background: #26262a; }
+button[hidden] { display: none; }
+.status { flex-basis: 100%; opacity: .7; font-size: 12px; overflow-wrap: anywhere; }
+.status:empty { display: none; }
+.body { flex: 1; overflow: auto; padding: 6px max(10px, calc(50vw - 560px)); }
+.row { display: grid; grid-template-columns: 14px minmax(0, 1fr) minmax(0, 200px) 52px minmax(0, auto); gap: 10px; align-items: center; padding: 3px 6px; border-radius: 6px; }
+.row:hover { background: #ffffff0a; }
+.row a { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row a:hover { color: #8ea2ff; }
+.dim { opacity: .5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips { display: flex; gap: 3px; flex-wrap: wrap; justify-content: flex-end; }
+.chip { font: 600 11px/18px system-ui, sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; background: #ffffff14; }
+.chip.tag { background: #4b6bfb33; color: #b3c0ff; }
+.add { color: #7d7; } .rm { color: #e77; }
+h4 { margin: 12px 0 4px; font-weight: 600; opacity: .8; }
+`;
+let lib;
+function openLibrary() {
+    if (lib) return;
+    closePanel();
+    const host = h('div');
+    host.style.cssText = 'position: fixed; inset: 0; z-index: 2147483000;';
+    // keys typed in the search must not reach the player
+    for (const t of ['keydown', 'keyup', 'keypress', 'wheel']) host.addEventListener(t, (e) => e.stopPropagation());
+    const root = host.attachShadow({ mode: 'closed' });
+    let data = GM_getValue('flush.library', { at: 0, playlists: [] }), tags = {}, plan = null, busy = false;
+    const statusEl = h('div', { className: 'status' }), body = h('div', { className: 'body' });
+    const say = (t) => { statusEl.textContent = t; };
+    const plSel = h('select', { onchange: () => { plan = null; draw(); } });
+    const search = h('input', { placeholder: 'title or channel', oninput: () => draw() });
+    const applyBtn = h('button', { hidden: true, title: 'make these changes on the account', onclick: () => run(apply) }, 'apply');
+    const close = () => { host.remove(); lib = null; document.documentElement.style.overflow = ''; };
+
+    const run = async (fn) => {
+        if (busy) return;
+        busy = true;
+        try { await fn(); } catch (e) { say('failed: ' + e.message); } finally { busy = false; }
+    };
+    const loadTags = async () => { tags = (await askMark('https://youtube.com/watch?v=')) || {}; };
+
+    async function refresh() {
+        const pls = [];
+        await browseAll('FEplaylist_aggregation', (p) => { pls.push(...p.playlists); say(`${pls.length} playlists`); });
+        for (const [id, title] of [['WL', 'Watch later'], ['LL', 'Liked videos']]) if (!pls.some(p => p.id === id)) pls.push({ id, title });
+        const old = new Map(data.playlists.map(p => [p.id, p]));
+        const out = [], failed = [];
+        for (const [i, p] of pls.entries()) {
+            if (out.some(o => o.id === p.id)) continue;
+            const videos = [];
+            // a playlist that will not load keeps what the last refresh had
+            const ok = await browseAll('VL' + p.id, (pg) => { videos.push(...pg.videos); say(`${i + 1}/${pls.length} ${p.title} | ${videos.length} videos`); })
+                .then(() => true, (e) => { failed.push(`${p.title} (${e.message})`); return false; });
+            out.push({ ...p, ...(old.get(p.id)?.ro && { ro: true }), videos: ok ? videos : old.get(p.id)?.videos || [] });
+            await sleep(1000);
+        }
+        data = { at: Date.now(), playlists: out };
+        GM_setValue('flush.library', data);
+        const n = out.reduce((a, p) => a + p.videos.length, 0);
+        const marked = await sendToMark();
+        await loadTags();
+        say(`${out.length} playlists | ${n} videos | ${marked}${failed.length ? ' | not loaded: ' + failed.join(', ') : ''}`);
+        draw();
+    }
+    async function sendToMark() {
+        if (await askMark('-') === null) return 'mark not answering, tags not sent';
+        const { entries, sent } = newPairs(data, GM_getValue('flush.sent', {}));
+        if (Object.keys(entries).length) document.dispatchEvent(new CustomEvent('mark:add', { detail: JSON.stringify(entries) }));
+        GM_setValue('flush.sent', sent);
+        return `${Object.keys(entries).length} videos tagged in mark`;
+    }
+    async function makePlan() {
+        if (!data.at) return say('refresh first');
+        const t = await askMark('https://youtube.com/watch?v=');
+        if (t === null) return say('mark not answering | the plan reads tags from mark');
+        tags = t;
+        plan = planCleanup(data, tags, GM_getValue('flush.sent', {}));
+        say(plan.length ? `${plan.length} changes | nothing is written until apply` : 'nothing to clean up');
+        draw();
+    }
+    async function apply() {
+        const by = Map.groupBy ? Map.groupBy(plan, o => o.pl) : plan.reduce((m, o) => m.set(o.pl, [...(m.get(o.pl) || []), o]), new Map());
+        if (!confirm(`apply ${plan.length} changes to ${by.size} playlists on the youtube account?`)) return;
+        const failed = [];
+        for (const [pl, ops] of by) {
+            const p = data.playlists.find(x => x.id === pl);
+            for (let i = 0; i < ops.length; i += 50) {
+                say(`${p.title} | ${i}/${ops.length}`);
+                const r = await api('browse/edit_playlist', { playlistId: pl, actions: ops.slice(i, i + 50).map(editAction) }).catch(() => null);
+                if (r?.status !== 'STATUS_SUCCEEDED') { p.ro = true; failed.push(p.title); break; }
+                await sleep(1000);
+            }
+        }
+        GM_setValue('flush.library', data);
+        plan = null;
+        say(failed.length ? `refused, skipped from now on: ${failed.join(', ')} | refreshing` : 'applied | refreshing');
+        await refresh();
+    }
+    function exportLib() {
+        const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify({ ...data, tags }, null, 1)], { type: 'application/json' })), download: 'flush-playlists.json' });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        say('Downloads/flush-playlists.json');
+    }
+
+    function draw() {
+        const pick = plSel.value;
+        plSel.replaceChildren(h('option', { value: '' }, 'all playlists'), ...data.playlists.map(p => h('option', { value: p.id }, `${p.title} (${p.videos.length})`)));
+        plSel.value = pick;
+        applyBtn.hidden = !plan?.length;
+        if (plan) {
+            const title = new Map(data.playlists.flatMap(p => p.videos.map(v => [v.id, v.title])));
+            const groups = data.playlists.map(p => [p, plan.filter(o => o.pl === p.id)]).filter(([, ops]) => ops.length);
+            return body.replaceChildren(...groups.flatMap(([p, ops]) => [h('h4', {}, `${p.title} | ${ops.length}`),
+                ...ops.map(o => h('div', { className: 'row' }, h('span', { className: o.op === 'add' ? 'add' : 'rm' }, o.op === 'add' ? '+' : '−'),
+                    h('a', { href: '/watch?v=' + o.id, target: '_blank' }, o.title || title.get(o.id) || o.id), h('span', { className: 'dim' }, o.why), h('span'), h('span')))]));
+        }
+        const q = search.value.toLowerCase(), names = new Map(data.playlists.map(p => [p.id, p.title]));
+        const vids = new Map();
+        for (const p of data.playlists) if (!pick || p.id === pick) for (const v of p.videos) {
+            const e = vids.get(v.id) || vids.set(v.id, { ...v, pls: new Set() }).get(v.id);
+            e.pls.add(p.id);
+        }
+        const rows = [...vids.values()].filter(v => !q || `${v.title} ${v.channel}`.toLowerCase().includes(q));
+        const shown = rows.slice(0, 500);
+        body.replaceChildren(...shown.map(v => {
+            const pl = [...v.pls].map(id => names.get(id));
+            const own = (tags[videoKey(v.id)] || []).filter(t => !pl.includes(t));
+            return h('div', { className: 'row' }, h('span', { className: 'dim' }, v.dead ? '⊘' : ''),
+                h('a', { href: '/watch?v=' + v.id, target: '_blank', title: v.title }, v.title), h('span', { className: 'dim' }, v.channel), h('span', { className: 'dim' }, v.len),
+                h('span', { className: 'chips' }, ...pl.map(t => h('span', { className: 'chip' }, t)), ...own.map(t => h('span', { className: 'chip tag' }, t))));
+        }), rows.length > shown.length ? h('div', { className: 'dim' }, `${rows.length - shown.length} more | narrow the search`) : '');
+        if (!busy && !plan) say(data.at ? `${data.playlists.length} playlists | ${rows.length} videos shown | refreshed ${new Date(data.at).toLocaleString()}` : 'refresh pulls the account\'s playlists');
+    }
+
+    root.append(h('style', {}, LIB_CSS), h('div', { className: 'lib', onkeydown: (e) => e.key === 'Escape' && (plan ? (plan = null, draw()) : close()) },
+        h('div', { className: 'bar' },
+            h('div', { className: 'group' },
+                h('button', { title: 'pull every playlist of the account, then tag new videos in mark', onclick: () => run(refresh) }, 'refresh'),
+                h('button', { title: 'what cleanup would change, nothing written', onclick: () => run(makePlan) }, 'plan'), applyBtn),
+            h('div', { className: 'group filters' }, plSel, search),
+            h('div', { className: 'group' },
+                h('button', { title: 'Downloads/flush-playlists.json', onclick: exportLib }, 'export'),
+                h('button', { title: 'close (esc)', onclick: close }, '✕')),
+            statusEl),
+        body));
+    document.body.append(host);
+    document.documentElement.style.overflow = 'hidden';
+    lib = host;
+    loadTags().then(draw);
+    draw();
+    search.focus();
+}
+
 let panel;
 function buildPanel() {
     const host = h('div');
@@ -456,7 +737,7 @@ function buildPanel() {
     } }, 'update');
     latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
     root.append(h('style', {}, PANEL_CSS), h('div', { className: 'p', onkeydown: (e) => e.key === 'Escape' && closePanel() },
-        h('div', { className: 'top' }, h('b', {}, 'flush'), updateBtn, h('button', { title: 'close (esc)', onclick: closePanel }, '✕')),
+        h('div', { className: 'top' }, h('b', {}, 'flush'), h('button', { title: 'the account\'s playlists', onclick: openLibrary }, 'playlists'), updateBtn, h('button', { title: 'close (esc)', onclick: closePanel }, '✕')),
         ...TOGGLES.map(([k, label]) => h('label', {},
             h('input', { type: 'checkbox', checked: !!cfg(k), onchange: (e) => { setCfg(k, e.target.checked); applyFeatures(); } }), label)),
         h('b', {}, 'sponsorblock skip'),
@@ -503,6 +784,7 @@ function main() {
 #flush-pill:hover { opacity: 1; }`);
 
     GM_registerMenuCommand('settings', () => togglePanel());
+    GM_registerMenuCommand('playlists', () => openLibrary());
 
     document.addEventListener('keydown', handleSeekKey, true);
     document.addEventListener('wheel', handleWheel, { capture: true, passive: false });
@@ -532,5 +814,5 @@ function main() {
     document.body ? observe() : document.addEventListener('DOMContentLoaded', observe, { once: true });
 }
 
-if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, HIDE, segmentAt, newer, cookieFile };
+if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, HIDE, segmentAt, newer, cookieFile, parsePage, newPairs, planCleanup, editAction };
 else main();
