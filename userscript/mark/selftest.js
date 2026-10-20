@@ -131,6 +131,10 @@ assert.ok(newer('2.10', '2.9') && !newer('2.1', '2.1') && !newer('2.0', '2.0.1')
     assert.strictEqual(removeTags({ 'https://a.com/x': { tags: ['a'] }, 'https://a.com/y': { tags: ['a'] } }), 2);
     assert.deepStrictEqual(_store()['https://a.com/x'].tags, ['b']);
     assert.ok(!_store()['https://a.com/y'], 'entry with no tag and no note goes');
+    const { onSite, _setHost } = require('./mark.user.js');
+    _setHost('youtube.com');
+    assert.deepStrictEqual(Object.keys(onSite({ 'https://www.youtube.com/watch?v=jNQXAC9IVRw': 1, 'https://instagram.com/p/A': 1 })), ['https://www.youtube.com/watch?v=jNQXAC9IVRw'], 'bridge keeps to the page\'s site');
+    assert.deepStrictEqual(onSite(null), {});
 }
 
 console.log("ok"); // exit before the scan refresh() scheduled, there is no DOM here

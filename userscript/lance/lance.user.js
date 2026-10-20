@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         lance
 // @namespace    https://github.com/SolRaze/extentions/blob/main/userscript/lance
-// @version      1.2
+// @version      1.3
 // @description  exporter, usage tracker, enter-as-newline, injection with saved prompts, per-site settings
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -699,7 +699,8 @@ else (function () {
         // ---- click on box toggles menu with mirroring ----
         box.onclick = e => {
             if (e.target.closest && e.target.closest('.lance-pin-circle')) return;
-            if (moved) return;
+            // the click ending a drag; cleared here because a pinned pill gets no mousedown to clear it
+            if (moved) { moved = false; return; }
             if (box.classList.contains('open')) {
                 box.classList.remove('open');
                 document.querySelectorAll('.lance-menu-parent.open').forEach(el => el.classList.remove('open'));

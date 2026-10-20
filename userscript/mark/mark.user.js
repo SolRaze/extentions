@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.9
+// @version      2.10
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -218,7 +218,8 @@ function merge(json) {
 //   mark:add  {<url>: {tags, title?, type?}}  unions tags into the store, never removes one
 //   mark:remove {<url>: {tags}}               drops those tags, the entry goes once it has no tag or note
 //   mark:get  {id, prefix}                    answered by mark:tags {id, tags: {<url>: [tags]}} for keys starting with prefix
-// An entry's own title and type win over the ones sent.
+// An entry's own title and type win over the ones sent. Only keys on the page's own site are read or
+// written: every script on a matched site can send these events, mark's own pages included.
 function addTags(entries) {
     let n = 0;
     const now = Date.now();
@@ -251,13 +252,15 @@ function removeTags(entries) {
     return n;
 }
 const tagsWith = (prefix) => Object.fromEntries(Object.entries(store.data).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => [k, v.tags]));
+const ownSite = (k) => hostOf(rekey(k)) === pageHost;
+const onSite = (o) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k]) => ownSite(k)));
 function bridge() {
     const parse = (e) => { try { return JSON.parse(e.detail); } catch { return null; } };
-    document.addEventListener('mark:add', (e) => addTags(parse(e)));
-    document.addEventListener('mark:remove', (e) => removeTags(parse(e)));
+    document.addEventListener('mark:add', (e) => addTags(onSite(parse(e))));
+    document.addEventListener('mark:remove', (e) => removeTags(onSite(parse(e))));
     document.addEventListener('mark:get', (e) => {
         const q = parse(e);
-        if (typeof q?.prefix === 'string') document.dispatchEvent(new CustomEvent('mark:tags', { detail: JSON.stringify({ id: q.id, tags: tagsWith(q.prefix) }) }));
+        if (typeof q?.prefix === 'string') document.dispatchEvent(new CustomEvent('mark:tags', { detail: JSON.stringify({ id: q.id, tags: onSite(tagsWith(q.prefix)) }) }));
     });
 }
 
@@ -725,6 +728,7 @@ function main() {
     GM_registerMenuCommand('mark', openLib);
     GM_registerMenuCommand('mark couch', setCouch);
     bridge();
+    mirrorSoon(); // docs a failed mirror left behind go on the next page load
     // Other tabs saving: pick up their store so every tab shows the same tags.
     GM_addValueChangeListener(STORE, (k, o, v, remote) => { if (remote) { store = v || fresh(); refresh(); } });
 
@@ -733,5 +737,5 @@ function main() {
     scan();
 }
 
-if (typeof module !== 'undefined') module.exports = { newer, norm, load, match, linkMatch, merge, addTags, removeTags, tagsWith, docId, mirrorDiff, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _store: () => store.data };
+if (typeof module !== 'undefined') module.exports = { newer, norm, load, match, linkMatch, merge, addTags, removeTags, tagsWith, onSite, docId, mirrorDiff, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _setHost: (hst) => { pageHost = hst; }, _store: () => store.data };
 else main();

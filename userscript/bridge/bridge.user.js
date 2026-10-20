@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bridge
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/bridge
-// @version      1.1
+// @version      1.2
 // @description  open in orca
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -12,7 +12,7 @@
 // @run-at       document-idle
 // @grant        none
 // @downloadURL https://update.greasyfork.org/scripts/592839/bridge.user.js
-// @updateURL https://update.greasyfork.org/scripts/592839/bridge.user.js
+// @updateURL https://update.greasyfork.org/scripts/592839/bridge.meta.js
 // ==/UserScript==
 
 // Two ways in. Anywhere on the web, a link that points at a model file gets an Orca chip beside
@@ -51,7 +51,11 @@ if (typeof document !== 'undefined') {
         chip.className = LINK_CLASS;
         chip.href = deepLink(url);
         chip.textContent = 'Orca';
-        chip.title = `Open ${decodeURIComponent(url.split(/[?#]/)[0].split('/').pop())} in OrcaSlicer`;
+        const name = url.split(/[?#]/)[0].split('/').pop();
+        // a malformed %-escape in the name would throw and stop the sweep for the whole page
+        let shown = name;
+        try { shown = decodeURIComponent(name); } catch {}
+        chip.title = `Open ${shown} in OrcaSlicer`;
         chip.style.cssText = 'margin-left:.4em;padding:0 .45em;border:1px solid currentColor;border-radius:.7em;'
             + 'font:inherit;font-size:.85em;line-height:1.5;text-decoration:none;color:inherit;opacity:.7;'
             + 'vertical-align:baseline;white-space:nowrap;';

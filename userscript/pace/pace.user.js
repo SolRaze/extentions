@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.11
+// @version      1.12
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -89,8 +89,6 @@ function pickSource(src, variant, res, alt) {
     return { label, res: r, id: have[r] };
 }
 
-// An explicit start-end range: a suffix range (bytes=-N) is not CORS-safelisted, and pixeldrain
-// fails the preflight it triggers from onepace.net.
 // Dotted versions compared numerically: 2.10 is newer than 2.9.
 const newer = (a, b) => {
     const x = a.split('.').map(Number), y = b.split('.').map(Number);
@@ -105,6 +103,8 @@ const latest = () => new Promise((ok, fail) => GM_xmlhttpRequest({
     onerror: () => fail(new Error('greasyfork unreachable')), ontimeout: () => fail(new Error('greasyfork timed out')),
 }));
 
+// An explicit start-end range: a suffix range (bytes=-N) is not CORS-safelisted, and pixeldrain
+// fails the preflight it triggers from onepace.net.
 async function loadChapters(id) {
     try {
         const { size } = await (await fetch(`https://pixeldrain.net/api/file/${id}/info`)).json();

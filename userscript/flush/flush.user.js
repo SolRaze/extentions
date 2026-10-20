@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.6
+// @version      1.7
 // @description  seek buttons and keys, miniplayer button, scroll gestures, sponsorblock skipping, cpu tamer, a decluttered youtube and the account's playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -172,7 +172,7 @@ const editAction = (o) => o.op === 'add' ? { action: 'ACTION_ADD_VIDEO', addedVi
 // Settings, all in tampermonkey storage. Toggles default on.
 const DEFAULTS = { cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
     'sb.sponsor': true, 'sb.selfpromo': true, 'sb.interaction': true, 'sb.intro': false, 'sb.outro': false, 'sb.preview': false, 'sb.filler': false, 'sb.music_offtopic': false, 'sb-markers': false };
-// flush.hide is the all-groups switch of 1.6 and earlier, so a hide turned off there stays off
+// a hide group without its own setting follows flush.hide, the all-groups switch
 const cfg = (k) => GM_getValue('flush.' + k, k.startsWith('hide.') ? GM_getValue('flush.hide', true) : DEFAULTS[k]);
 const setCfg = (k, v) => GM_setValue('flush.' + k, v);
 
@@ -671,14 +671,16 @@ function openLibrary() {
             const p = data.playlists.find(x => x.id === pl);
             for (let i = 0; i < ops.length; i += 50) {
                 say(`${p.title} | ${i}/${ops.length}`);
-                const r = await api('browse/edit_playlist', { playlistId: pl, actions: ops.slice(i, i + 50).map(editAction) }).catch(() => null);
-                if (r?.status !== 'STATUS_SUCCEEDED') { p.ro = true; failed.push(p.title); break; }
+                // only an answer other than success marks the playlist read-only; a network error just stops it this run
+                const r = await api('browse/edit_playlist', { playlistId: pl, actions: ops.slice(i, i + 50).map(editAction) }).catch((e) => ({ error: e.message }));
+                if (r.error) { failed.push(`${p.title} (${r.error})`); break; }
+                if (r.status !== 'STATUS_SUCCEEDED') { p.ro = true; failed.push(p.title); break; }
                 await sleep(1000);
             }
         }
         GM_setValue('flush.library', data);
         plan = null;
-        say(failed.length ? `refused, skipped from now on: ${failed.join(', ')} | refreshing` : 'applied | refreshing');
+        say(failed.length ? `not applied: ${failed.join(', ')} | refused ones skipped from now on | refreshing` : 'applied | refreshing');
         await refresh();
     }
     function exportLib() {
