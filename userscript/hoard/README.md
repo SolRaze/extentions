@@ -29,6 +29,7 @@ tags
 tag on the selection | space separated | -tag removes | own tags, never sent to instagram
 tampermonkey menu tag store | couchdb database url with user:password | tags kept as docs `ig:<code>` {tags} | loaded on panel open
 no tag store = tampermonkey storage `hoard.tags`
+mark installed = named collections and own tags sent to it as post tags | removals follow | `hoard.marked` holds what it took
 
 collection edits
 add, remove, move queue in tampermonkey storage `hoard.queue` | nothing reaches the account before apply

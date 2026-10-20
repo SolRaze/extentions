@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.26
+// @version      1.27
 // @description  instagram saved collections as a reference library: grid, graph, tags, batch collection edits, save to disk on demand
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -469,7 +469,23 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 </body></html>
 `;
 
-if (typeof module !== 'undefined') module.exports = { expired, newer, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex, forget, queueEdit, layout };
+// What mark should hold per post: its named collections and own tags. sent {code: tags} is what mark last
+// took; returns the mark:add and mark:remove payloads for the posts in items, keyed the way mark keys posts.
+const markUrl = (it) => `https://instagram.com/${it.type === 'reel' ? 'reel' : 'p'}/${it.code}`;
+function markDiff(items, colNames, own, sent) {
+    const add = {}, rm = {}, next = { ...sent };
+    for (const it of items) {
+        const want = [...new Set([...it.cols.map(c => colNames[c]).filter(Boolean), ...(own[it.code] || [])])];
+        const had = sent[it.code] || [];
+        const plus = want.filter(t => !had.includes(t)), minus = had.filter(t => !want.includes(t));
+        if (plus.length) add[markUrl(it)] = { tags: plus, title: '@' + it.user, type: 'post' };
+        if (minus.length) rm[markUrl(it)] = { tags: minus };
+        if (want.length) next[it.code] = want; else delete next[it.code];
+    }
+    return { add, rm, next };
+}
+
+if (typeof module !== 'undefined') module.exports = { expired, newer, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex, forget, queueEdit, layout, markDiff };
 else main();
 
 function main() {
@@ -742,7 +758,10 @@ function main() {
     const shown = () => sortItems(filterItems(lib?.items || [], view, tags), view.sort);
 
     const allTags = () => [...new Set(Object.values(tags).flat())].sort();
+    let markT;
     function render() {
+        clearTimeout(markT);
+        markT = setTimeout(toMark, 1000);
         const cur = view.col, cols = lib?.cols || [];
         colSel.replaceChildren(
             h('option', { value: '', textContent: 'all saved' }),
@@ -950,6 +969,27 @@ function main() {
         const res = await couch('POST', '_bulk_docs', { docs: body });
         res.forEach((r, i) => { if (r.ok) docs[codes[i]] = { ...body[i], _rev: r.rev }; });
         return res.filter(r => !r.ok).length;
+    }
+    // Collections and own tags to mark through its page bridge (mark:add, mark:remove in mark.user.js).
+    // Placeholder names (collection <id>) stay out. mark not answering: nothing is recorded as sent.
+    const MARKED_KEY = 'hoard.marked';
+    function askMark() {
+        return new Promise((ok) => {
+            const id = Math.random().toString(36).slice(2);
+            const on = (e) => { let r; try { r = JSON.parse(e.detail); } catch { return; } if (r?.id === id) { done(); ok(true); } };
+            const done = () => { clearTimeout(t); document.removeEventListener('mark:tags', on); };
+            const t = setTimeout(() => { done(); ok(false); }, 1500);
+            document.addEventListener('mark:tags', on);
+            document.dispatchEvent(new CustomEvent('mark:get', { detail: JSON.stringify({ id, prefix: '-' }) }));
+        });
+    }
+    async function toMark() {
+        if (!lib?.items?.length || !await askMark()) return;
+        const names = Object.fromEntries(lib.cols.filter(c => !/^collection \d+$/.test(c.name)).map(c => [c.id, c.name]));
+        const { add, rm, next } = markDiff(lib.items, names, tags, GM_getValue(MARKED_KEY, {}));
+        if (Object.keys(add).length) document.dispatchEvent(new CustomEvent('mark:add', { detail: JSON.stringify(add) }));
+        if (Object.keys(rm).length) document.dispatchEvent(new CustomEvent('mark:remove', { detail: JSON.stringify(rm) }));
+        GM_setValue(MARKED_KEY, next);
     }
     async function tagSel() {
         const text = prompt(`tags for ${sel.size} posts, space separated · -tag removes`);
