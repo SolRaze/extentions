@@ -1,22 +1,43 @@
 hoard
 
-instagram saved collections as offline reference library | synced to disk | read-only, never writes to the account
+instagram saved collections as reference library | grid, graph, tags | batch collection edits | save to disk only when asked
 
 usage
-hoard pill top-right, same spot as ✕ | or tampermonkey menu open hoard | sync to disk | esc or ✕ closes
-refresh pulls saved feed with tab session, then syncs to disk while the links are fresh | cached until next refresh | a walk that stops early still syncs what it loaded
+hoard pill top-right, same spot as ✕ | or tampermonkey menu open hoard | esc clears the selection, then closes
+refresh pulls saved feed with tab session | nothing downloaded | cached until next refresh | cdn links in it expire, refresh again when thumbs break
 collection membership comes from each saved post | names from the collection list, else the saved page
 refresh from instagram.com/<you>/saved/ | walks the collection grid a screen at a time, learning names at every step | names kept after that
 unknown name = post waits, sync skips it | status shows the count | refresh from /saved/
-collection renamed on instagram = renamed in the archive | no redownload | tidy.py in the hoard repo moves the folder on disk
+collection renamed on instagram = renamed in the archive | no redownload | tidy.py in the hoard repo moves the folder where the library is kept
+tampermonkey menu forget posts | paste post codes or urls | dropped from the archive | sync downloads them again
 tab title reads saved on every instagram page
 hide elements on by default | 20 selectors in HIDE | tampermonkey menu hide elements on/off | choice kept
-bar | refresh, sync to disk left | filters middle | log, update, ✕ right | status full width below | narrow window puts filters on their own row
+bar | refresh, select, graph, apply, discard left | filters middle | sync to disk, log, update, ✕ right | status, then selection bar full width below | narrow window puts filters on their own row
 update button checks greasyfork | panel open checks once, label shows the new version | click opens tampermonkey's install page | reload instagram after
-in-tab library covers the rest of instagram | filter collection | type | user or caption | sort saved | newest | oldest | user
+in-tab library covers the rest of instagram | filter collection or #tag | type | user, caption or tag | sort saved | newest | oldest | user
+
+select
+shift, cmd or ctrl click selects | once anything is selected a plain click toggles | select = every post shown, again clears
+selection bar | collection picker | add | remove | move | tag | save to disk | clear
+move shows while filtered to a collection | adds to the picked one, removes from the filtered one
+
+graph
+graph button swaps the grid for islands | one per collection or tag shared by 2+ shown posts | post sits in its smallest one | rest pool unnamed
+drag pans | wheel zooms | click post opens or selects | click heading filters the grid by it
+
+tags
+tag on the selection | space separated | -tag removes | own tags, never sent to instagram
+tampermonkey menu tag store | couchdb database url with user:password | tags kept as docs `ig:<code>` {tags} | loaded on panel open
+no tag store = tampermonkey storage `hoard.tags`
+
+collection edits
+add, remove, move queue in tampermonkey storage `hoard.queue` | nothing reaches the account before apply
+apply N sends the queue | new collection created first | 50 posts a call, 1.5 s apart
+each touched post's collections read back after | edit not shown = back on the queue | no ids in the answer = unconfirmed
+discard drops the queue | hover apply lists it per collection
 
 sync
-sync to disk = download only posts not yet on disk from the loaded library | retries failures without a refresh | new saves come with refresh | rewrite index.html
+sync to disk = download only posts not yet on disk from the loaded library | selection bar's save to disk does the same for the selection | retries failures without a refresh | link expired = refresh first | rewrite index.html
 index.html and sidecars written from a blob | a data: url over 2 MB never downloads
 copy per collection folder | post in 2 collections sits in both | no collection goes to unsorted
 full res | every carousel item | only missing folders downloaded | post added to a collection gets one new copy

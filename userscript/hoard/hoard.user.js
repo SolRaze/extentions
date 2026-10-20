@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.25
-// @description  instagram saved collections as an offline reference library, synced to disk
+// @version      1.26
+// @description  instagram saved collections as a reference library: grid, graph, tags, batch collection edits, save to disk on demand
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -20,6 +20,7 @@
 // @connect      cdninstagram.com
 // @connect      fbcdn.net
 // @connect      greasyfork.org
+// @connect      *
 // @downloadURL https://update.greasyfork.org/scripts/598006/hoard.user.js
 // @updateURL https://update.greasyfork.org/scripts/598006/hoard.meta.js
 // ==/UserScript==
@@ -27,9 +28,12 @@
 // so a new one installs a second copy with an empty library.
 
 // Reads the saved feed through the same /api/v1 endpoints the web app calls, with the tab's own
-// session, and shows it in a full-screen library that covers the rest of Instagram. Sync writes
-// every post once into Downloads/reference/<collection>/ and rewrites reference/index.html, a
-// self-contained offline viewer with the library data inlined — file:// pages cannot fetch JSON.
+// session, and shows it in a full-screen library that covers the rest of Instagram: a grid, or a
+// graph of islands per collection and own tag, all from live CDN links, nothing stored. Selected
+// posts get tags and queued collection edits, which apply to the account in one paced run.
+// Save to disk, for the selection or everything, writes each post once into
+// Downloads/reference/<collection>/ and rewrites reference/index.html, a self-contained offline
+// viewer with the library data inlined — file:// pages cannot fetch JSON.
 
 const PAGE_DELAY = 1500;  // ms between feed pages
 const DL_DELAY = 800;     // ms between downloaded posts
@@ -165,13 +169,58 @@ const SORTS = {
 };
 const sortItems = (items, key) => [...items].sort(SORTS[key] || SORTS.saved);
 
-// col '' = everything, '-' = in no collection
-function filterItems(items, { col = '', type = '', q = '' } = {}) {
+// col '' = everything, '-' = in no collection, 'tag:<t>' = own tag; tags: own tags by post code
+function filterItems(items, { col = '', type = '', q = '' } = {}, tags = {}) {
     q = q.toLowerCase();
+    const t = q.replace(/^#/, '');
     return items.filter(it =>
-        (!col || (col === '-' ? !it.cols.length : it.cols.includes(col))) &&
+        (!col || (col === '-' ? !it.cols.length : col.startsWith('tag:') ? (tags[it.code] || []).includes(col.slice(4)) : it.cols.includes(col))) &&
         (!type || it.type === type) &&
-        (!q || it.user.toLowerCase().includes(q) || it.caption.toLowerCase().includes(q)));
+        (!q || it.user.toLowerCase().includes(q) || it.caption.toLowerCase().includes(q) || (tags[it.code] || []).some(x => x.includes(t))));
+}
+
+// Pending collection edits until applied: {<collection id | 'new:<name>'>: {add: [codes], rm: [codes]}}.
+// The last action on a post wins; one that matches what has(code) says it already is drops out.
+function queueEdit(q, col, codes, add, has = () => false) {
+    const e = q[col] ||= { add: [], rm: [] };
+    for (const c of codes) {
+        e.add = e.add.filter(x => x !== c);
+        e.rm = e.rm.filter(x => x !== c);
+        if (add !== has(c)) (add ? e.add : e.rm).push(c);
+    }
+    if (!e.add.length && !e.rm.length) delete q[col];
+    return q;
+}
+
+// Graph layout: an island per hub (collection or tag) shared by 2+ posts, each post in its
+// smallest hub's island so the specific beats the broad; the rest pool in one unnamed island ('').
+// Islands on an outward spiral, largest first; posts on a sunflower inside each, S apart.
+// Returns {islands: [{hub, n, x, y, r, members}], at: Map(code -> [x, y])}.
+const GOLD = Math.PI * (3 - Math.sqrt(5));
+function layout(items, hubsOf, S = 40) {
+    const count = new Map();
+    for (const it of items) for (const k of hubsOf(it)) count.set(k, (count.get(k) || 0) + 1);
+    const by = new Map();
+    for (const it of items) {
+        const k = hubsOf(it).filter(k => count.get(k) > 1).sort((a, b) => count.get(a) - count.get(b) || a.localeCompare(b))[0] || '';
+        (by.get(k) || by.set(k, []).get(k)).push(it);
+    }
+    const c = S * 0.7;
+    const islands = [...by].map(([hub, members]) => ({ hub, n: count.get(hub) || members.length, members, r: c * Math.sqrt(members.length) + S }))
+        .sort((a, b) => (!a.hub - !b.hub) || b.members.length - a.members.length);
+    const at = new Map(), placed = [];
+    for (const is of islands) {
+        for (let i = 0; ; i++) {
+            const d = 2.25 * S * Math.sqrt(i), x = d * Math.cos(i * GOLD), y = d * Math.sin(i * GOLD);
+            if (placed.every(p => Math.hypot(p.x - x, p.y - y) > p.r + is.r + S * 1.6)) { is.x = x; is.y = y; break; }
+        }
+        placed.push(is);
+        is.members.forEach((it, i) => {
+            const d = c * Math.sqrt(i + 0.5);
+            at.set(it.code, [is.x + d * Math.cos(i * GOLD), is.y + d * Math.sin(i * GOLD)]);
+        });
+    }
+    return { islands, at };
 }
 
 const safe = (s) => String(s).replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/^\.+/, '').trim().slice(0, 80) || '_';
@@ -209,6 +258,18 @@ function renameFolders(arc, cols) {
     const pairs = [...mv];
     arc.renames = [...(arc.renames || []), ...pairs];
     return pairs;
+}
+
+// Drops posts from the archive so the next sync downloads them again; a userscript cannot see
+// the disk, so a file lost or misnamed there is reported from outside. Takes post codes or post
+// urls split by spaces, commas or newlines. Returns how many were in the archive.
+function forget(arc, text) {
+    let n = 0;
+    for (const t of text.split(/[\s,]+/)) {
+        const code = /([\w-]+)\/?$/.exec(t)?.[1];
+        if (code && arc.posts[code]) { delete arc.posts[code]; n++; }
+    }
+    return n;
 }
 
 // '<' is escaped so a caption holding "</script>" cannot close the inline data block.
@@ -408,21 +469,26 @@ header .n { margin-left: auto; color: var(--mute); font-size: 12px; }
 </body></html>
 `;
 
-if (typeof module !== 'undefined') module.exports = { expired, newer, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex };
+if (typeof module !== 'undefined') module.exports = { expired, newer, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex, forget, queueEdit, layout };
 else main();
 
 function main() {
     const LIB_KEY = 'hoard.lib';
     const ARC_KEY = 'hoard.archive';
+    const NAMES_KEY = 'hoard.cols';
+    const QUEUE_KEY = 'hoard.queue';
     const APP_ID = '936619743392459';
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     // 5xx (Instagram's 572 included) and 429 are transient mid-paging: back off and retry the same cursor.
-    async function api(path) {
+    // form: POST fields, sent with the csrftoken cookie as instagram's own writes are
+    async function api(path, form) {
         for (let wait = 5000; ; wait *= 3) {
             const res = await fetch('/api/v1/' + path, {
                 credentials: 'include',
-                headers: { 'X-IG-App-ID': APP_ID, 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { 'X-IG-App-ID': APP_ID, 'X-Requested-With': 'XMLHttpRequest',
+                    ...form && { 'X-CSRFToken': /csrftoken=([^;]+)/.exec(document.cookie)?.[1] || '', 'Content-Type': 'application/x-www-form-urlencoded' } },
+                ...form && { method: 'POST', body: new URLSearchParams(form) },
             });
             if (res.ok) return res.json();
             if ((res.status < 500 && res.status !== 429) || wait > 45000) throw new Error(`${path} ${res.status}`);
@@ -446,8 +512,10 @@ function main() {
     let lib = GM_getValue(LIB_KEY, null);
     // Everything synced to disk: posts by code with local paths, never CDN urls — those expire.
     const archive = () => GM_getValue(ARC_KEY, null) || { posts: {}, profiles: {}, cols: [] };
-    const view = { col: '', type: '', q: '', sort: 'saved' };
-    const colName = (id) => lib.cols.find(c => c.id === id)?.name || id;
+    const view = { col: '', type: '', q: '', sort: 'saved', graph: false };
+    const colName = (id) => lib.cols.find(c => c.id === id)?.name || GM_getValue(NAMES_KEY, {})[id] || id;
+    const sel = new Set();  // selected post codes
+    const byCode = () => new Map((lib?.items || []).map(it => [it.code, it]));
 
     GM_addStyle(`
         #hoard { position: fixed; inset: 0; z-index: 2147483000; background: #0b0b0c; color: #ddd;
@@ -474,6 +542,12 @@ function main() {
         #hoard .tile img { width: 100%; height: 100%; object-fit: cover; }
         #hoard .tile span { position: absolute; left: 4px; bottom: 4px; background: #000a; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
         #hoard .tile.done::after { content: '✓'; position: absolute; top: 4px; right: 6px; }
+        #hoard .tile.sel { outline: 3px solid #8ab4ff; outline-offset: -3px; }
+        #hoard .tile.sel img { opacity: .75; }
+        #hoard [hidden] { display: none !important; }
+        #hoard .selbar { order: 3; flex-basis: 100%; flex-wrap: wrap; }
+        #hoard .body.g { padding: 0; overflow: hidden; }
+        #hoard canvas { width: 100%; height: 100%; display: block; }
         #hoard-view { position: fixed; inset: 0; z-index: 2147483001; background: #000d; display: flex; overflow: auto; padding: 20px; gap: 16px; }
         #hoard-view .media { flex: 1; display: flex; flex-direction: column; gap: 8px; align-items: center; }
         #hoard-view .media img, #hoard-view .media video { max-width: 100%; max-height: 85vh; }
@@ -535,17 +609,42 @@ function main() {
     } });
     const checkUpdate = () => latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
 
+    const graphBtn = h('button', { textContent: 'graph', title: 'islands per collection and tag', onclick: () => { view.graph = !view.graph; render(); } });
+    const applyBtn = h('button', { hidden: true, onclick: () => run(apply) });
+    const discardBtn = h('button', { textContent: 'discard', hidden: true, title: 'drop every pending collection edit', onclick: () => {
+        if (busy || !confirm('drop every pending collection edit?')) return;
+        GM_setValue(QUEUE_KEY, {});
+        renderQueue();
+    } });
+    const selN = h('span');
+    const target = h('select', { title: 'collection the edit goes to' });
+    const moveBtn = h('button', { textContent: 'move', title: 'add to the chosen collection, remove from the one filtered', onclick: () => edit(true, true) });
+    const selBar = h('div', { className: 'group selbar', hidden: true },
+        selN, target,
+        h('button', { textContent: 'add', title: 'queue: add the selection to the chosen collection', onclick: () => edit(true) }),
+        h('button', { textContent: 'remove', title: 'queue: remove the selection from the chosen collection', onclick: () => edit(false) }),
+        moveBtn,
+        h('button', { textContent: 'tag', title: 'add tags, -tag removes', onclick: () => tagSel() }),
+        h('button', { textContent: 'save to disk', title: 'download the selection', onclick: () => run(saveSelected) }),
+        h('button', { textContent: 'clear', title: 'clear the selection (esc)', onclick: () => { sel.clear(); render(); } }));
+
     root.append(
         h('div', { className: 'bar' },
             h('div', { className: 'group act' },
-                h('button', { textContent: 'refresh', title: 'pull the saved feed, then sync to disk', onclick: () => run(refresh) }),
-                h('button', { textContent: 'sync to disk', title: 'download what is not on disk yet', onclick: () => run(sync) })),
+                h('button', { textContent: 'refresh', title: 'pull the saved feed', onclick: () => run(load) }),
+                h('button', { textContent: 'select', title: 'select every post shown, again clears', onclick: () => {
+                    const list = shown();
+                    if (list.every(it => sel.has(it.code))) sel.clear(); else list.forEach(it => sel.add(it.code));
+                    render();
+                } }),
+                graphBtn, applyBtn, discardBtn),
             h('div', { className: 'group filters' }, colSel, typeSel, sortSel, search),
             h('div', { className: 'group tools' },
+                h('button', { textContent: 'sync to disk', title: 'download every post not on disk yet', onclick: () => run(sync) }),
                 h('button', { textContent: 'log', title: 'write Downloads/reference/hoard-log.json', onclick: () => saveLog().then(() => status('log written to reference/hoard-log.json')) }),
                 updateBtn,
                 h('button', { textContent: '✕', title: 'close (esc)', onclick: close })),
-            statusEl),
+            statusEl, selBar),
         body);
     document.body.append(root, viewer,
         h('button', { id: 'hoard-pill', textContent: 'hoard', onclick: open }));
@@ -566,7 +665,6 @@ function main() {
 
     // Collection names by id, merged across refreshes: the list endpoint may 404, and the saved
     // page's collection links (/<user>/saved/<slug>/<id>/) are the fallback source.
-    const NAMES_KEY = 'hoard.cols';
     function learnNames() {
         const names = GM_getValue(NAMES_KEY, {});
         for (const a of document.querySelectorAll('a[href*="/saved/"]')) {
@@ -641,32 +739,48 @@ function main() {
         if (unnamed) status(`${unnamed} collection names unknown: open instagram.com/<you>/saved/, then refresh`);
     }
 
-    // Sync straight after the walk, while its cdn links are fresh. A walk that stopped early still
-    // syncs what it loaded; its error leads the status.
-    async function refresh() {
-        let stop;
-        try { await load(); } catch (e) { stop = e; log('error', { task: 'load', error: e.message }); }
-        if (lib?.items.length) await sync();
-        if (stop) status(`${stop.message} · ${status.last}`);
-    }
+    const shown = () => sortItems(filterItems(lib?.items || [], view, tags), view.sort);
 
-    const shown = () => sortItems(filterItems(lib?.items || [], view), view.sort);
-
+    const allTags = () => [...new Set(Object.values(tags).flat())].sort();
     function render() {
-        const cur = view.col;
+        const cur = view.col, cols = lib?.cols || [];
         colSel.replaceChildren(
             h('option', { value: '', textContent: 'all saved' }),
             h('option', { value: '-', textContent: 'no collection' }),
-            ...(lib?.cols || []).map(c => h('option', { value: c.id, textContent: c.name })));
+            ...cols.map(c => h('option', { value: c.id, textContent: c.name })),
+            ...allTags().map(t => h('option', { value: 'tag:' + t, textContent: '#' + t })));
         colSel.value = cur;
+        const tv = target.value;
+        target.replaceChildren(...cols.map(c => h('option', { value: c.id, textContent: c.name })),
+            h('option', { value: 'new', textContent: 'new collection…' }));
+        if (tv) target.value = tv;
+        renderQueue();
+        graphBtn.textContent = view.graph ? 'grid' : 'graph';
+        body.classList.toggle('g', view.graph && !!lib);
         if (!lib) { body.replaceChildren('no library yet — hit refresh'); return; }
         const synced = archive().posts;
         const list = shown();
-        status(`${list.length} shown · ${lib.items.length} saved · ${Object.keys(synced).length} on disk · ${new Date(lib.at).toLocaleString()}`);
+        status(`${list.length} shown · ${lib.items.length} saved · ${Object.keys(synced).length} on disk · ${new Date(lib.at).toLocaleString()} · shift-click selects`);
+        renderSel();
+        if (view.graph) return graph(list);
         body.replaceChildren(h('div', { className: 'grid' }, ...list.map(it =>
-            h('div', { className: 'tile' + (synced[it.code] ? ' done' : ''), onclick: () => show(it) },
+            h('div', { className: 'tile' + (synced[it.code] ? ' done' : '') + (sel.has(it.code) ? ' sel' : ''), onclick: e => pick(e, it, e.currentTarget) },
                 h('img', { src: it.thumb, loading: 'lazy', referrerPolicy: 'no-referrer' }),
-                h('span', { textContent: `@${it.user}${it.type === 'photo' ? '' : ' · ' + it.type}` })))));
+                h('span', { textContent: `@${it.user}${it.type === 'photo' ? '' : ' · ' + it.type}${tags[it.code]?.length ? ' · #' + tags[it.code].join(' #') : ''}` })))));
+    }
+
+    // a modifier click, or any click once something is selected, toggles; else it opens the post
+    function pick(e, it, tile) {
+        if (!(e.shiftKey || e.metaKey || e.ctrlKey || sel.size)) return show(it);
+        sel.has(it.code) ? sel.delete(it.code) : sel.add(it.code);
+        tile?.classList.toggle('sel', sel.has(it.code));
+        renderSel();
+    }
+    function renderSel() {
+        selBar.hidden = !sel.size;
+        selN.textContent = `${sel.size} selected`;
+        moveBtn.hidden = !/^\d+$/.test(view.col);
+        if (view.graph) graph.draw?.();
     }
 
     function show(it) {
@@ -680,7 +794,9 @@ function main() {
                 `\n${it.taken ? new Date(it.taken * 1000).toLocaleString() : ''}`,
                 it.location ? `\n${it.location.name}` : null,
                 it.tagged?.length ? `\nwith ${it.tagged.map(u => '@' + u).join(', ')}` : null,
-                `\n${it.cols.map(colName).join(', ') || 'no collection'}\n\n${it.caption}`));
+                `\n${it.cols.map(colName).join(', ') || 'no collection'}`,
+                tags[it.code]?.length ? `\n#${tags[it.code].join(' #')}` : null,
+                `\n\n${it.caption}`));
         viewer.prepend(h('button', { className: 'x', textContent: '✕', onclick: () => { viewer.hidden = true; } }));
         viewer.hidden = false;
     }
@@ -713,8 +829,9 @@ function main() {
     // of its collections' folders (else "unsorted"); only folders it does not have yet are
     // downloaded, so a post added to another collection gets one new copy. Nothing is deleted.
     // The archive is saved after every post, so an interrupted sync resumes.
-    async function sync() {
+    async function sync(items) {
         if (!lib) await load();
+        items ||= lib.items;
         const arc = archive();
         for (const it of lib.items) {
             const p = arc.posts[it.code];
@@ -745,10 +862,10 @@ function main() {
             }
             arc.sideV = 2;
         }
-        const waiting = lib.items.filter(it => it.cols.some(id => !names[id])).length;
-        const todo = lib.items.filter(it => it.cols.every(id => names[id]) && due(it));
+        const waiting = items.filter(it => it.cols.some(id => !names[id])).length;
+        const todo = items.filter(it => it.cols.every(id => names[id]) && due(it));
         let n = 0, failed = 0, fetched = 0, stuck = 0;
-        log('sync start', { items: lib.items.length, todo: todo.length, waiting, renamed: renamed.length, libAge: Math.round((Date.now() - lib.at) / 60000) + ' min' });
+        log('sync start', { items: items.length, todo: todo.length, waiting, renamed: renamed.length, libAge: Math.round((Date.now() - lib.at) / 60000) + ' min' });
         status(`sync 0/${todo.length}`);
         for (const it of todo) {
             n++;
@@ -798,8 +915,222 @@ function main() {
         status(`synced ${todo.length - failed} (${fetched} with media) · ${Object.keys(arc.posts).length} on disk${failed ? ` · ${failed} failed (${status.first}), sync again` : ''}${renamed.length ? ` · ${renamed.length} folders renamed, run tidy.py` : ''}${waiting ? ` · ${waiting} wait for collection names, refresh from /saved/` : ''}`);
     }
 
+    const saveSelected = () => sync(lib.items.filter(it => sel.has(it.code)));
+
+    // Own tags by post code. With a tag store set (tampermonkey menu), a couchdb database url with
+    // user:password in it, each lives there as {_id: 'ig:<code>', tags}, the docs the hoard app
+    // reads; else in tampermonkey storage `hoard.tags`.
+    const TAGS_KEY = 'hoard.tags', STORE_KEY = 'hoard.store';
+    let tags = GM_getValue(TAGS_KEY, {});
+    const docs = {};  // couch docs by code, held for their _rev
+    function couch(method, path, body) {
+        const u = new URL(GM_getValue(STORE_KEY, ''));
+        const auth = 'Basic ' + btoa(decodeURIComponent(u.username) + ':' + decodeURIComponent(u.password));
+        u.username = u.password = '';
+        return new Promise((ok, fail) => GM_xmlhttpRequest({
+            method, url: u.href.replace(/\/?$/, '/') + path, timeout: 30000,
+            headers: { Authorization: auth, 'Content-Type': 'application/json' }, data: body && JSON.stringify(body),
+            onload: r => r.status < 300 ? ok(JSON.parse(r.responseText)) : fail(new Error(`tag store ${r.status}`)),
+            onerror: () => fail(new Error('tag store unreachable')), ontimeout: () => fail(new Error('tag store timed out')),
+        }));
+    }
+    async function loadTags() {
+        if (!GM_getValue(STORE_KEY, '')) return;
+        const k = (s) => encodeURIComponent(JSON.stringify(s));
+        const d = await couch('GET', `_all_docs?include_docs=true&startkey=${k('ig:')}&endkey=${k('ig:￰')}`);
+        tags = {};
+        for (const row of d.rows) if (row.doc) { const c = row.id.slice(3); docs[c] = row.doc; if (row.doc.tags?.length) tags[c] = row.doc.tags; }
+        GM_setValue(TAGS_KEY, tags);
+    }
+    async function retag(codes, fn) {
+        for (const c of codes) { const t = [...new Set(fn(tags[c] || []))]; if (t.length) tags[c] = t; else delete tags[c]; }
+        GM_setValue(TAGS_KEY, tags);
+        if (!GM_getValue(STORE_KEY, '')) return 0;
+        const body = codes.map(c => ({ ...(docs[c] || { _id: 'ig:' + c }), tags: tags[c] || [] }));
+        const res = await couch('POST', '_bulk_docs', { docs: body });
+        res.forEach((r, i) => { if (r.ok) docs[codes[i]] = { ...body[i], _rev: r.rev }; });
+        return res.filter(r => !r.ok).length;
+    }
+    async function tagSel() {
+        const text = prompt(`tags for ${sel.size} posts, space separated · -tag removes`);
+        if (!text) return;
+        const words = text.toLowerCase().split(/[\s,]+/).map(w => w.replace(/^#/, '')).filter(Boolean);
+        const add = words.filter(w => !w.startsWith('-')), rm = words.filter(w => w.startsWith('-')).map(w => w.slice(1));
+        try {
+            const bad = await retag([...sel], t => [...t.filter(x => !rm.includes(x)), ...add]);
+            render();
+            status(`${sel.size} posts tagged${bad ? ` · ${bad} not written to the tag store, reload and retry` : ''}`);
+        } catch (e) { render(); status('tags kept here, not in the tag store: ' + e.message); }
+    }
+
+    // Collection edits queue in `hoard.queue` until apply; nothing touches the account before it.
+    function edit(add, move) {
+        if (busy) return status('busy, wait for it to finish');
+        let col = target.value;
+        if (col === 'new') {
+            if (!add) return status('remove needs an existing collection');
+            const name = prompt('new collection name')?.trim();
+            if (!name) return;
+            col = 'new:' + name;
+        }
+        const q = GM_getValue(QUEUE_KEY, {}), items = byCode(), codes = [...sel];
+        queueEdit(q, col, codes, add, c => !!items.get(c)?.cols.includes(col));
+        if (move && view.col !== col) queueEdit(q, view.col, codes, false, c => !!items.get(c)?.cols.includes(view.col));
+        GM_setValue(QUEUE_KEY, q);
+        renderQueue();
+        status(`queued · ${applyBtn.textContent} when ready`);
+    }
+    function renderQueue() {
+        const q = GM_getValue(QUEUE_KEY, {}), ops = Object.entries(q);
+        const n = ops.reduce((s, [, e]) => s + e.add.length + e.rm.length, 0);
+        applyBtn.hidden = discardBtn.hidden = !n;
+        applyBtn.textContent = `apply ${n}`;
+        applyBtn.title = ops.map(([c, e]) => `${c.startsWith('new:') ? c.slice(4) + ' (new)' : colName(c)}${e.add.length ? ' +' + e.add.length : ''}${e.rm.length ? ' −' + e.rm.length : ''}`).join('\n');
+    }
+
+    // Sends the queue, PAGE_DELAY apart, 50 posts a call. Instagram can answer ok to an edit it
+    // ignores, so each touched post's own saved_collection_ids is read back: an edit it does not
+    // show goes back on the queue. A post whose info carries no ids stays as sent, unconfirmed.
+    async function apply() {
+        if (!lib) throw new Error('refresh first');
+        const q = GM_getValue(QUEUE_KEY, {}), items = byCode(), names = GM_getValue(NAMES_KEY, {});
+        const pk = (c) => items.get(c)?.id.split('_')[0];
+        const ids = (cs) => JSON.stringify(cs.map(pk).filter(Boolean));
+        const sent = [];
+        let n = 0;
+        for (const [key, e] of Object.entries(q)) {
+            let col = key;
+            if (key.startsWith('new:')) {
+                status(`creating ${key.slice(4)}`);
+                const r = await api('collections/create/', { name: key.slice(4), added_media_ids: ids(e.add), module_name: 'feed_saved_add_to_collection' });
+                col = String(r.collection_id ?? r.collection?.collection_id ?? '');
+                if (!col) throw new Error('collection create answered without an id');
+                names[col] = key.slice(4);
+                GM_setValue(NAMES_KEY, names);
+            } else {
+                for (let i = 0; i < Math.max(e.add.length, e.rm.length); i += 50) {
+                    status(`applying ${colName(col)} ${n}`);
+                    await api(`collections/${col}/edit/`, { added_media_ids: ids(e.add.slice(i, i + 50)), removed_media_ids: ids(e.rm.slice(i, i + 50)), module_name: 'feed_saved_collections' });
+                    await sleep(PAGE_DELAY);
+                }
+            }
+            sent.push([col, e]);
+            n += e.add.length + e.rm.length;
+            delete q[key];
+            GM_setValue(QUEUE_KEY, q);
+            log('collection edit', { col, add: e.add.length, rm: e.rm.length });
+        }
+        const touched = [...new Set(sent.flatMap(([, e]) => [...e.add, ...e.rm]))].filter(c => items.has(c));
+        let i = 0, unsure = 0;
+        for (const c of touched) {
+            status(`checking ${++i}/${touched.length}`);
+            const m = (await api(`media/${pk(c)}/info/`)).items?.[0];
+            if (m?.saved_collection_ids) items.get(c).cols = m.saved_collection_ids.map(String);
+            else { unsure++; items.get(c).unsure = true; }
+            await sleep(300);
+        }
+        let missed = 0;
+        for (const [col, e] of sent) for (const [add, cs] of [[true, e.add], [false, e.rm]]) {
+            const bad = cs.filter(c => items.has(c) && !items.get(c).unsure && items.get(c).cols.includes(col) !== add);
+            if (bad.length) { queueEdit(q, col, bad, add); missed += bad.length; }
+        }
+        touched.forEach(c => delete items.get(c).unsure);
+        GM_setValue(QUEUE_KEY, q);
+        const cols = [...new Set(lib.items.flatMap(it => it.cols))];
+        lib.cols = cols.map(id => ({ id, name: names[id] || 'collection ' + id }));
+        GM_setValue(LIB_KEY, lib);
+        render();
+        log('apply end', { sent: n, missed, unsure });
+        status(`${n - missed - unsure} edits confirmed${missed ? ` · ${missed} not taken by instagram, back on the queue` : ''}${unsure ? ` · ${unsure} unconfirmed` : ''}`);
+    }
+
+    // Islands per collection and own tag (layout above), thumbs from the live CDN links.
+    // Drag pans, wheel zooms, click opens or selects a post, click a heading filters by it.
+    const thumbs = new Map();
+    function graph(list) {
+        const S = 40, hubsOf = (it) => [...it.cols.map(c => 'col:' + c), ...(tags[it.code] || []).map(t => 'tag:' + t)];
+        const { islands, at } = layout(list, hubsOf, S);
+        const cv = h('canvas');
+        body.replaceChildren(cv);
+        const ctx = cv.getContext('2d'), dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+        cv.width = W * dpr; cv.height = H * dpr;
+        const label = (hub) => hub.startsWith('tag:') ? '#' + hub.slice(4) : colName(hub.slice(4));
+        const b = islands.length ? [Math.min(...islands.map(i => i.x - i.r)), Math.min(...islands.map(i => i.y - i.r)) - S,
+            Math.max(...islands.map(i => i.x + i.r)), Math.max(...islands.map(i => i.y + i.r))] : [-S, -S, S, S];
+        const k0 = Math.min(4, 0.95 * Math.min(W / (b[2] - b[0]), H / (b[3] - b[1])));
+        const T = { k: k0, x: -k0 * (b[0] + b[2]) / 2, y: -k0 * (b[1] + b[3]) / 2 };
+        const heads = [];
+        const img = (it) => {
+            let im = thumbs.get(it.code);
+            if (!im) {
+                im = new Image();
+                im.referrerPolicy = 'no-referrer';
+                im.onload = () => graph.draw();
+                im.src = it.thumb;
+                thumbs.set(it.code, im);
+            }
+            return im.naturalWidth ? im : null;
+        };
+        let queued = false;
+        graph.draw = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; if (cv.isConnected) draw(); }); } };
+        function draw() {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, cv.width, cv.height);
+            ctx.setTransform(dpr * T.k, 0, 0, dpr * T.k, dpr * (W / 2 + T.x), dpr * (H / 2 + T.y));
+            const x0 = (-W / 2 - T.x) / T.k - S, y0 = (-H / 2 - T.y) / T.k - S, x1 = x0 + W / T.k + 2 * S, y1 = y0 + H / T.k + 2 * S;
+            for (const it of list) {
+                const [x, y] = at.get(it.code);
+                if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+                const im = S * T.k > 6 && img(it);
+                if (im) ctx.drawImage(im, x - S / 2, y - S / 2, S, S);
+                else { ctx.fillStyle = '#1a1a1d'; ctx.fillRect(x - S / 2, y - S / 2, S, S); }
+                if (sel.has(it.code)) { ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 3 / T.k; ctx.strokeRect(x - S / 2, y - S / 2, S, S); }
+            }
+            heads.length = 0;
+            const fs = 13 / T.k;
+            ctx.font = `600 ${fs}px system-ui`;
+            ctx.textAlign = 'center';
+            for (const is of islands) {
+                if (!is.hub || is.r * 2 * T.k < 40) continue;
+                const t = `${label(is.hub)} ${is.n}`, w = ctx.measureText(t).width, y = is.y - is.r - fs * 0.2;
+                ctx.fillStyle = '#0b0b0ce0';
+                ctx.fillRect(is.x - w / 2 - fs * 0.4, y - fs * 1.1, w + fs * 0.8, fs * 1.5);
+                ctx.fillStyle = is.hub.startsWith('tag:') ? '#76a98a' : '#c4a26a';
+                ctx.fillText(t, is.x, y);
+                heads.push([is, is.x - w / 2 - fs * 0.4, y - fs * 1.1, w + fs * 0.8, fs * 1.5]);
+            }
+            ctx.textAlign = 'left';
+        }
+        const world = (e) => [(e.offsetX - W / 2 - T.x) / T.k, (e.offsetY - H / 2 - T.y) / T.k];
+        let down = null;
+        cv.onmousedown = (e) => { down = { x: e.clientX, y: e.clientY, tx: T.x, ty: T.y, moved: false }; };
+        cv.onmousemove = (e) => {
+            if (!down) return;
+            T.x = down.tx + e.clientX - down.x; T.y = down.ty + e.clientY - down.y;
+            down.moved ||= Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y) > 4;
+            graph.draw();
+        };
+        cv.onmouseup = (e) => {
+            const moved = down?.moved;
+            down = null;
+            if (moved) return;
+            const [x, y] = world(e);
+            const hd = heads.find(([, hx, hy, hw, hh]) => x >= hx && x <= hx + hw && y >= hy && y <= hy + hh);
+            if (hd) { view.col = hd[0].hub.startsWith('tag:') ? hd[0].hub : hd[0].hub.slice(4); view.graph = false; return render(); }
+            const it = list.find(it => { const [px, py] = at.get(it.code); return Math.abs(px - x) <= S / 2 && Math.abs(py - y) <= S / 2; });
+            if (it) pick(e, it);
+        };
+        cv.onwheel = (e) => {
+            e.preventDefault();
+            const [x, y] = world(e), k = Math.min(30, Math.max(0.02, T.k * Math.exp(-e.deltaY * 0.0015)));
+            T.k = k; T.x = e.offsetX - W / 2 - x * k; T.y = e.offsetY - H / 2 - y * k;
+            graph.draw();
+        };
+        draw();
+    }
+
     function open() {
-        if (!open.checked) { open.checked = true; checkUpdate(); }
+        if (!open.checked) { open.checked = true; checkUpdate(); loadTags().then(render, e => status('tag store: ' + e.message)); }
         root.hidden = false;
         document.documentElement.style.overflow = 'hidden';
         render();
@@ -813,7 +1144,9 @@ function main() {
     window.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || root.hidden) return;
         e.stopPropagation();
-        if (!viewer.hidden) viewer.hidden = true; else close();
+        if (!viewer.hidden) viewer.hidden = true;
+        else if (sel.size) { sel.clear(); render(); }
+        else close();
     }, true);
     const HIDE_KEY = 'hoard.hide';
     const hideStyle = GM_addStyle(HIDE.map(sel => `${sel} { display: none !important; }`).join('\n'));
@@ -830,4 +1163,20 @@ function main() {
         GM_setValue(HIDE_KEY, !hideStyle.disabled);
     });
     GM_registerMenuCommand('sync to disk', () => run(sync));
+    GM_registerMenuCommand('tag store', () => {
+        const url = prompt('couchdb database url for tags, https://user:password@host/db/ · empty keeps them in tampermonkey', GM_getValue(STORE_KEY, ''));
+        if (url === null) return;
+        GM_setValue(STORE_KEY, url.trim());
+        open();
+        loadTags().then(() => { render(); status(url.trim() ? 'tag store connected' : 'tags kept in tampermonkey'); }, e => status('tag store: ' + e.message));
+    });
+    GM_registerMenuCommand('forget posts', () => {
+        const text = prompt('post codes or urls to download again');
+        if (!text) return;
+        const arc = archive(), n = forget(arc, text);
+        GM_setValue(ARC_KEY, arc);
+        log('forget', { n });
+        open();
+        status(`${n} posts forgotten · refresh downloads them again`);
+    });
 }
