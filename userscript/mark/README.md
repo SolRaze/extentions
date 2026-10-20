@@ -41,14 +41,21 @@ tags from one site show on links to it from another | a github repo on hacker ne
 bridge
 other scripts on the page talk to mark through dom events | json string detail
 mark:add {<url>: {tags, title?, type?}} | unions tags, never removes | the entry's own title wins
+mark:remove {<url>: {tags}} | drops those tags
 mark:get {id, prefix} | answered by mark:tags {id, tags: {<url>: [tags]}} | every key starting with prefix
 flush uses it | youtube playlists become tags
+hoard uses it | instagram collections and own tags
 
 store
 tampermonkey storage `mark.store` | utags shape | a utags export imports here
 import | newer entry wins whole | removed tags and utags deletions carry over | undo reverts it
 meta.colors tag to hue | meta.effects tag to effect | meta.note per entry
 entries kept while they carry a tag or a note | open tabs sync on save
+
+couch mirror
+tampermonkey menu `mark couch` | couchdb database url with user:password in it | empty turns it off
+instagram posts as ig:<code> | youtube videos as yt:<id> | field `mark` only, `tags` left to hoard
+sent 2 s after a save | only changed docs | failed ones retried on the next save
 
 gotchas
 text links only | avatars and thumbnails skipped | pinterest, civitai also take image links

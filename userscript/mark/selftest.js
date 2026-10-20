@@ -118,5 +118,21 @@ assert.deepStrictEqual(tagsWith('https://youtube.com/watch?v='), { 'https://yout
 
 assert.ok(newer('2.10', '2.9') && !newer('2.1', '2.1') && !newer('2.0', '2.0.1'));
 
+// couch mirror: post and video keys map to hoard's doc ids, only changed docs go
+{
+    const { docId, mirrorDiff, removeTags } = require('./mark.user.js');
+    assert.strictEqual(docId('https://instagram.com/p/AbC_1'), 'ig:AbC_1');
+    assert.strictEqual(docId('https://instagram.com/reel/AbC_1'), 'ig:AbC_1');
+    assert.strictEqual(docId('https://youtube.com/watch?v=jNQXAC9IVRw'), 'yt:jNQXAC9IVRw');
+    assert.strictEqual(docId('https://instagram.com/someone'), null);
+    const data = { 'https://instagram.com/p/A': { tags: ['x'] }, 'https://instagram.com/reel/A': { tags: ['y', 'x'] }, 'https://youtube.com/watch?v=jNQXAC9IVRw': { tags: ['z'] } };
+    assert.deepStrictEqual(mirrorDiff(data, { 'yt:jNQXAC9IVRw': ['z'], 'ig:gone': ['q'] }), { 'ig:A': ['x', 'y'], 'ig:gone': [] });
+    _setStore({ data: { 'https://a.com/x': { tags: ['a', 'b'], meta: {} }, 'https://a.com/y': { tags: ['a'], meta: {} } }, meta: {} });
+    assert.strictEqual(removeTags({ 'https://a.com/x': { tags: ['a'] }, 'https://a.com/y': { tags: ['a'] } }), 2);
+    assert.deepStrictEqual(_store()['https://a.com/x'].tags, ['b']);
+    assert.ok(!_store()['https://a.com/y'], 'entry with no tag and no note goes');
+}
+
 console.log("ok"); // exit before the scan refresh() scheduled, there is no DOM here
 process.exit(0);
+

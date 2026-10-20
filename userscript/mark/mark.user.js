@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.8
+// @version      2.9
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -31,6 +31,7 @@
 // @grant        GM_openInTab
 // @grant        GM_info
 // @connect      greasyfork.org
+// @connect      *
 // @downloadURL https://update.greasyfork.org/scripts/598296/mark.user.js
 // @updateURL https://update.greasyfork.org/scripts/598296/mark.meta.js
 // ==/UserScript==
@@ -147,7 +148,7 @@ const load = () => {
     store = GM_getValue(STORE) || fresh();
     if (Object.keys(store.data).some(k => rekey(k) !== k)) { const old = store; store = { ...old, data: {} }; merge(old); }
 };
-const commit = () => { GM_setValue(STORE, store); refresh(); };
+const commit = () => { GM_setValue(STORE, store); refresh(); mirrorSoon(); };
 const tagsOf = (key) => store.data[key]?.tags || [];
 
 // Writes one entry; it stays while it has tags or a note.
@@ -215,6 +216,7 @@ function merge(json) {
 // Page bridge for the other scripts on the same page (flush). DOM events carrying JSON strings, the one
 // detail every userscript world passes intact.
 //   mark:add  {<url>: {tags, title?, type?}}  unions tags into the store, never removes one
+//   mark:remove {<url>: {tags}}               drops those tags, the entry goes once it has no tag or note
 //   mark:get  {id, prefix}                    answered by mark:tags {id, tags: {<url>: [tags]}} for keys starting with prefix
 // An entry's own title and type win over the ones sent.
 function addTags(entries) {
@@ -233,14 +235,83 @@ function addTags(entries) {
     if (n) commit();
     return n;
 }
+function removeTags(entries) {
+    let n = 0;
+    for (let [key, v] of Object.entries(entries || {})) {
+        const rm = Array.isArray(v?.tags) ? v.tags : [];
+        key = rekey(key);
+        const old = store.data[key];
+        if (!old || !old.tags.some(t => rm.includes(t))) continue;
+        const tags = old.tags.filter(t => !rm.includes(t));
+        if (tags.length || old.meta?.note) store.data[key] = { tags, meta: { ...old.meta, updated: Date.now() } };
+        else delete store.data[key];
+        n++;
+    }
+    if (n) commit();
+    return n;
+}
 const tagsWith = (prefix) => Object.fromEntries(Object.entries(store.data).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => [k, v.tags]));
 function bridge() {
     const parse = (e) => { try { return JSON.parse(e.detail); } catch { return null; } };
     document.addEventListener('mark:add', (e) => addTags(parse(e)));
+    document.addEventListener('mark:remove', (e) => removeTags(parse(e)));
     document.addEventListener('mark:get', (e) => {
         const q = parse(e);
         if (typeof q?.prefix === 'string') document.dispatchEvent(new CustomEvent('mark:tags', { detail: JSON.stringify({ id: q.id, tags: tagsWith(q.prefix) }) }));
     });
+}
+
+// Couch mirror. With a couchdb database url (user:password in it) set from the menu, instagram posts and
+// youtube videos are written to the hoard reference db as {_id: 'ig:<code>' | 'yt:<id>', mark: [tags]}.
+// mark owns only the `mark` field; `tags` belongs to hoard and its web app, which show the union.
+// mark.mirrored {doc id: tags} is what the db last took, so each save sends only the changed docs.
+const COUCH = 'mark.couch', MIRRORED = 'mark.mirrored';
+const docId = (key) => {
+    const m = /^https:\/\/instagram\.com\/(?:p|reel)\/([\w-]+)$/.exec(key) || /^https:\/\/youtube\.com\/watch\?v=([\w-]{11})$/.exec(key);
+    return m && (key.includes('instagram') ? 'ig:' : 'yt:') + m[1];
+};
+function mirrorDiff(data, sent) {
+    const want = {};
+    for (const [k, v] of Object.entries(data)) { const id = docId(k); if (id && v.tags.length) want[id] = [...new Set([...(want[id] || []), ...v.tags])]; }
+    const out = {};
+    for (const id of new Set([...Object.keys(want), ...Object.keys(sent)])) {
+        const t = want[id] || [];
+        if (t.join('\n') !== (sent[id] || []).join('\n')) out[id] = t;
+    }
+    return out;
+}
+function couch(method, path, body) {
+    const u = new URL(GM_getValue(COUCH, ''));
+    const auth = 'Basic ' + btoa(decodeURIComponent(u.username) + ':' + decodeURIComponent(u.password));
+    u.username = u.password = '';
+    return new Promise((ok, fail) => GM_xmlhttpRequest({
+        method, url: u.href.replace(/\/?$/, '/') + path, timeout: 30000,
+        headers: { Authorization: auth, 'Content-Type': 'application/json' }, data: body && JSON.stringify(body),
+        onload: r => r.status < 300 ? ok(JSON.parse(r.responseText)) : fail(new Error(`couch ${r.status}`)),
+        onerror: () => fail(new Error('couch unreachable')), ontimeout: () => fail(new Error('couch timed out')),
+    }));
+}
+// Failed docs stay out of mark.mirrored, so the next save retries them.
+async function mirror() {
+    if (!GM_getValue(COUCH, '')) return 0;
+    const sent = GM_getValue(MIRRORED, {}), diff = mirrorDiff(store.data, sent), ids = Object.keys(diff);
+    if (!ids.length) return 0;
+    const have = await couch('POST', '_all_docs?include_docs=true', { keys: ids });
+    const docs = have.rows.map((r, i) => ({ ...(r.doc || { _id: ids[i] }), mark: diff[ids[i]] }));
+    const res = await couch('POST', '_bulk_docs', { docs });
+    for (const r of res) if (r.ok) { if (diff[r.id].length) sent[r.id] = diff[r.id]; else delete sent[r.id]; }
+    GM_setValue(MIRRORED, sent);
+    return res.filter(r => !r.ok).length;
+}
+let mirrorT;
+const mirrorSoon = () => { if (typeof GM_xmlhttpRequest === 'undefined') return; clearTimeout(mirrorT); mirrorT = setTimeout(() => mirror().catch(e => console.warn('mark mirror', e.message)), 2000); };
+function setCouch() {
+    const url = prompt('couchdb database url, user:password in it · empty turns the mirror off', GM_getValue(COUCH, ''));
+    if (url === null) return;
+    if (url && !/^https?:\/\/[^/]+:[^@/]+@/.test(url)) return alert('needs http(s)://user:password@host/db');
+    GM_setValue(COUCH, url.trim());
+    GM_setValue(MIRRORED, {});
+    if (url) mirror().then(bad => alert(bad ? `${bad} docs failed, saved again on the next edit` : 'mirrored')).catch(e => alert(e.message));
 }
 
 // Dotted versions compared numerically: 2.10 is newer than 2.9.
@@ -652,6 +723,7 @@ function main() {
     }, true);
 
     GM_registerMenuCommand('mark', openLib);
+    GM_registerMenuCommand('mark couch', setCouch);
     bridge();
     // Other tabs saving: pick up their store so every tab shows the same tags.
     GM_addValueChangeListener(STORE, (k, o, v, remote) => { if (remote) { store = v || fresh(); refresh(); } });
@@ -661,5 +733,5 @@ function main() {
     scan();
 }
 
-if (typeof module !== 'undefined') module.exports = { newer, norm, load, match, linkMatch, merge, addTags, tagsWith, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _store: () => store.data };
+if (typeof module !== 'undefined') module.exports = { newer, norm, load, match, linkMatch, merge, addTags, removeTags, tagsWith, docId, mirrorDiff, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _store: () => store.data };
 else main();

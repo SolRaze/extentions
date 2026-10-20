@@ -9,7 +9,8 @@ userscript/ tampermonkey | greasemonkey scripts
 - pace/ one pace player on onepace.net | intro, outro skip | autonext | watched | pixeldrain without side bars | greasyfork 598867
 
 together
-mark tags | flush sends youtube playlists as tags | mark:add, mark:get page events
+mark tags | flush sends youtube playlists, hoard instagram collections and own tags | mark:add, mark:remove, mark:get page events
+mark couch mirror | ig:<code>, yt:<id> docs in hoard's reference db | hoard web shows them beside its own tags
 flush plan | playlist cleanup from mark tags | applied only on confirm
 
 greasyfork userscript/<name> "<changelog>" | posts a new version | id from @updateURL | none creates the script | login from keepass
