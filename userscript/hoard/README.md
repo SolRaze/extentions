@@ -11,7 +11,7 @@ unknown name = post waits, sync skips it | status shows the count | refresh from
 collection renamed on instagram = renamed in the archive | no redownload | tidy.py in the hoard repo moves the folder where the library is kept
 tampermonkey menu forget posts | paste post codes or urls | dropped from the archive | sync downloads them again
 tab title reads saved on every instagram page
-hide elements on by default | 20 selectors in HIDE | tampermonkey menu hide elements on/off | choice kept
+instagram page clutter is hidden by flush | per element switches there
 bar | refresh, select, graph, apply, discard left | filters middle | sync to disk, log, update, ✕ right | status, then selection bar full width below | narrow window puts filters on their own row
 update button checks greasyfork | panel open checks once, label shows the new version | click opens tampermonkey's install page | reload instagram after
 in-tab library covers the rest of instagram | filter collection or #tag | type | user, caption or tag | sort saved | newest | oldest | user
@@ -77,7 +77,6 @@ gotchas
 instagram 5xx or 429 retried after 5, 15, 45 s | still failing keeps the posts fetched so far | next refresh within an hour continues from that page | later ones start over, cdn links expire
 throttled 1.5 s per feed page | 0.8 s per downloaded post | fast scraping risks account flag
 per-collection feeds 404 since instagram retired them | collections rebuilt from the saved feed
-hide selectors are instagram's generated class names | a deploy renames them | stale ones just stop hiding
 media id stays a string | pk overflows a js number
 tampermonkey storage cleared = archive lost | next sync redownloads everything
 
