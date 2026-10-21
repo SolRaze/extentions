@@ -137,3 +137,21 @@ assert.deepStrictEqual(editAction(plan[1]), { action: 'ACTION_REMOVE_VIDEO', set
 assert.deepStrictEqual(editAction(plan[0]), { action: 'ACTION_REMOVE_VIDEO_BY_VIDEO_ID', removedVideoId: 'a' });
 assert.deepStrictEqual(editAction(plan[3]), { action: 'ACTION_ADD_VIDEO', addedVideoId: 'c' });
 console.log('playlists: ok');
+
+// sites: hostnames resolve to their SITES entry, rules switch off per group and per selector
+{
+    const { SITES, siteOf, hideCss } = require('./flush.user.js');
+    assert.strictEqual(siteOf('www.youtube.com'), 'youtube.com');
+    assert.strictEqual(siteOf('www.instagram.com'), 'instagram.com');
+    assert.strictEqual(siteOf('open.spotify.com'), 'open.spotify.com');
+    assert.strictEqual(siteOf('notyoutube.com'), null, 'a suffix that is not a subdomain');
+    for (const [site, { groups }] of Object.entries(SITES)) {
+        const keys = groups.map(([k]) => k);
+        assert.strictEqual(new Set(keys).size, keys.length, `${site} group keys unique`);
+        for (const [, label, sels] of groups) assert.ok(label && sels.length, `${site} groups carry a label and rules`);
+    }
+    const g = [['a', 'A', ['.x', '.y']], ['b', 'B', ['.z']]];
+    assert.strictEqual(hideCss(g, k => k === 'a', { '.y': 1 }), '.x { display: none !important; }');
+    assert.strictEqual(hideCss(g, () => true, {}, '.z'), '.x { display: none !important; }\n.y { display: none !important; }', 'the shown rule is left out');
+    console.log('sites: ok');
+}

@@ -1,13 +1,39 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.7
-// @description  seek buttons and keys, miniplayer button, scroll gestures, sponsorblock skipping, cpu tamer, a decluttered youtube and the account's playlists tagged in mark
+// @version      1.8
+// @description  decluttered youtube, instagram, spotify, x, soundcloud, claude, reddit and more, a switch per hidden element | on youtube seek buttons and keys, miniplayer, gestures, sponsorblock, cpu tamer, playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
 // @license      MIT
 // @match        https://*.youtube.com/*
+// @match        https://instagram.com/*
+// @match        https://*.instagram.com/*
+// @match        https://open.spotify.com/*
+// @match        https://*.open.spotify.com/*
+// @match        https://x.com/*
+// @match        https://*.x.com/*
+// @match        https://soundcloud.com/*
+// @match        https://*.soundcloud.com/*
+// @match        https://claude.ai/*
+// @match        https://*.claude.ai/*
+// @match        https://reddit.com/*
+// @match        https://*.reddit.com/*
+// @match        https://civitai.red/*
+// @match        https://*.civitai.red/*
+// @match        https://discord.com/*
+// @match        https://*.discord.com/*
+// @match        https://pinterest.com/*
+// @match        https://*.pinterest.com/*
+// @match        https://chess.com/*
+// @match        https://*.chess.com/*
+// @match        https://chat.deepseek.com/*
+// @match        https://*.chat.deepseek.com/*
+// @match        https://utags.link/*
+// @match        https://*.utags.link/*
+// @match        https://india.numakers.com/*
+// @match        https://*.india.numakers.com/*
 // @noframes
 // @run-at       document-start
 // @grant        GM_addStyle
@@ -25,45 +51,74 @@
 // @updateURL https://update.greasyfork.org/scripts/598191/flush.meta.js
 // ==/UserScript==
 
-// YouTube page elements hidden, one switch per group, all on by default. Same rules as the uBlock
-// filters, so a YouTube deploy that renames a class just stops hiding that element.
-const HIDE = [
-    ['masthead', 'logo, menu, create and bell', [
-        '#logo',
-        '#header > .ytd-app.style-scope',
-        '#icon > .yt-icon-button.style-scope',
-        'yt-button-shape > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost',
-        '.ytd-masthead.style-scope > yt-button-shape > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconOnlyDefault.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextText.ytSpecButtonShapeNextHost',
-    ]],
-    ['profile', 'profile picture', [
-        'ytd-masthead ytd-topbar-menu-button-renderer:has(#avatar-btn)',
-    ]],
-    ['sidebar', 'sidebar extras and footer', [
-        'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(1)',
-        'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(4)',
-        'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(5)',
-        'ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(6)',
-        'ytd-mini-guide-entry-renderer.ytd-mini-guide-renderer.style-scope:nth-of-type(2)',
-        '#guide-links-primary',
-        '#guide-links-secondary',
-        '#copyright',
-        '.ytd-guide-entry-renderer.style-scope.guide-icon',
-    ]],
-    ['overlay', 'buttons over the video', [
-        '.yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-leading.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next',
-        '.yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-only-default.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next',
-        '.ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextOverlay.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost',
-    ]],
-    ['watch', 'donations, shopping and carousels', [
-        '.ytd-watch-flexy.style-scope > .ytd-donation-unavailable-renderer.style-scope',
-        'ytd-badge-supported-renderer.ytd-watch-metadata.style-scope > .ytBadgeSupportedRendererHost > .ytBadgeSupportedRendererBadgeShape.badge-shape > .ytMetadataBadgeRendererHost > .ytBadgeShapeTypography.ytBadgeShapeCommerce.ytBadgeShapeHost > .ytBadgeShapeText',
-        '.ytVideoMetadataCarouselViewModelHost',
-        '#teaser-carousel',
-    ]],
-    ['ask', 'ask (ai chat) button', [
-        '.you-chat-entrypoint-button.ytd-menu-renderer.style-scope.ytSpecButtonViewModelHost',
-    ]],
-];
+// Page elements hidden per site, one switch per group and per rule, all on by default. Same rules as
+// the uBlock filters they came from, so a deploy that renames a class just stops hiding that element.
+// youtube's group keys are the hide.<key> settings of every flush release, keep them.
+const SITES = {
+    'youtube.com': { name: 'youtube', groups: [
+        ["masthead", "logo, menu, create and bell", ["#logo", "#header > .ytd-app.style-scope", "#icon > .yt-icon-button.style-scope", "yt-button-shape > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost", ".ytd-masthead.style-scope > yt-button-shape > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconOnlyDefault.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextText.ytSpecButtonShapeNextHost"]],
+        ["profile", "profile picture", ["ytd-masthead ytd-topbar-menu-button-renderer:has(#avatar-btn)"]],
+        ["sidebar", "sidebar extras and footer", ["ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(1)", "ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(4)", "ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(5)", "ytd-guide-section-renderer.ytd-guide-renderer.style-scope:nth-of-type(6)", "ytd-mini-guide-entry-renderer.ytd-mini-guide-renderer.style-scope:nth-of-type(2)", "#guide-links-primary", "#guide-links-secondary", "#copyright", ".ytd-guide-entry-renderer.style-scope.guide-icon"]],
+        ["overlay", "buttons over the video", [".yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-leading.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next", ".yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-only-default.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next", ".ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextOverlay.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost"]],
+        ["watch", "donations, shopping and carousels", [".ytd-watch-flexy.style-scope > .ytd-donation-unavailable-renderer.style-scope", "ytd-badge-supported-renderer.ytd-watch-metadata.style-scope > .ytBadgeSupportedRendererHost > .ytBadgeSupportedRendererBadgeShape.badge-shape > .ytMetadataBadgeRendererHost > .ytBadgeShapeTypography.ytBadgeShapeCommerce.ytBadgeShapeHost > .ytBadgeShapeText", ".ytVideoMetadataCarouselViewModelHost", "#teaser-carousel"]],
+        ["ask", "ask (ai chat) button", [".you-chat-entrypoint-button.ytd-menu-renderer.style-scope.ytSpecButtonViewModelHost"]],
+    ] },
+    'instagram.com': { name: 'instagram', groups: [
+        ["ig.nav", "sidebar nav entries", [".x1dlrdel.x1ddbhtg.x1fkh5qu.x11njtxf.x1n2onr6.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x2lah0s.xdt5ytf.x78zum5.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.x7a106z > ._a6hd.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl", ".xhuyl8g.xl5mz7h > span.x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x78zum5.x6s0dn4.x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .x159b3zp.x80pfx3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x15x8krk.xde0f50.x5a5i1n.x1obq294.x3nfvp2.x9f619", ".xhuyl8g.xl5mz7h > span.x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", "div:nth-of-type(5) > div > .x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", ".xc26acl.xh8yej3.x1iyjqo2 > div > .x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", ".x1n2onr6 > .x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", ".xc26acl.xh8yej3.x1iyjqo2 > div > div > div > .x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", "._a6hd.xlxy82.x1q0q8m5.x16stqrj.x1xnnf8n.x106a9eq.xn3w4p2.x1c4vz4f.x1lku1pv.x1hl2dhg.xl56j7k.x1q0g3np.x78zum5.x6s0dn4.x1a2a7pz.xggy1nq.x16tdsg8.x18d9i69.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x1ypdohk.x9f619.x14e42zd.x10w94by.x972fbf.xstzfhl.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl"]],
+        ["ig.stories", "story ring canvases", ["canvas"]],
+        ["ig.tabs", "profile and saved page tab labels", ["span.xe9ewy2.x2fvf9.x1s688f.x1ypdohk:nth-of-type(3)", "span.xe9ewy2.x2fvf9.x1s688f.x1ypdohk:nth-of-type(4)", "span.xe9ewy2.x2fvf9.x1s688f.x1ypdohk:nth-of-type(5)", "span.xe9ewy2.x2fvf9.x1s688f.x1ypdohk:nth-of-type(2)"]],
+        ["ig.misc", "other page panels, banners and buttons", [".x1n2onr6.x1odjw0f.xw2csxc.x5yr21d", "div.xmzvs34.xwib8y2.xf159sx.x1y1aw1k.xus2keu.xpzwpp9.x1epzrsm.x1a2a7pz.x1lku1pv.x87ps6o.x1q0g3np.x3nfvp2.xo1y3bh.x140muxe.xu25z0z.x1fmog5m.x1t137rt.x1ja2u2z.xggy1nq.x1hl2dhg.x16tdsg8.x1n2onr6.xeuugli.x2lwn1j.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x2lah0s.xdl72j9.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.x1t7ytsu.x1q0q8m5.x18b5jzi.x13fuv20.x1phubyo.xqeqjp1.xc5r6h4.xjqpnuy.xjbqb8w.x1qjc9v5.x1i10hfl:nth-of-type(2)", "div.xmzvs34.xwib8y2.xf159sx.x1y1aw1k.xus2keu.xpzwpp9.x1epzrsm.x1a2a7pz.x1lku1pv.x87ps6o.x1q0g3np.x3nfvp2.xo1y3bh.x140muxe.xu25z0z.x1fmog5m.x1t137rt.x1ja2u2z.xggy1nq.x1hl2dhg.x16tdsg8.x1n2onr6.xeuugli.x2lwn1j.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x2lah0s.xdl72j9.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.x1t7ytsu.x1q0q8m5.x18b5jzi.x13fuv20.x1phubyo.xqeqjp1.xc5r6h4.xjqpnuy.xjbqb8w.x1qjc9v5.x1i10hfl:nth-of-type(1)", "span > .x14snt5h.x1o7uuvo.x1jplu5e.x4gyw5p.x1epzrsm.xmzvs34.xwib8y2.xf159sx.x1y1aw1k.xl56j7k.x78zum5.x1ypdohk.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x6s0dn4.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.x1i10hfl", ".x1nhvcw1.x1oa3qoh.x1qjc9v5.xqjyukv.xdt5ytf.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1uhb9sk.xdwrcjd.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.xat24cr.x14z9mp.xdj266r.html-div > .x1n2onr6.x1lliihq > path", ".x1nhvcw1.x1oa3qoh.x6s0dn4.xqjyukv.x1q0g3np.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1uhb9sk.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-div > .x1n5bzlp.x1n2onr6.x1c1uobl.x18d9i69.xyri2b.xexx8yu.xt7dq6l.xt0psk2.x14e42zd.x1qhh985.x10w94by.x972fbf.x6en5u8.x1ui04y5.x1e4oeot.xr9e8f9.xjbqb8w.xt0b8zv.x20cjte.xf8g3cd.xr5sc7.x11q7cde.x1i0vuye.x18br7mf.x5c86q.x14atkfc.x87ps6o.xlyipyv.x2b8uid.x17ydfre.xl56j7k.x1f6kntn.x1ypdohk.x9f619.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjyslct.x6s0dn4.x1a2a7pz.x1q0g3np.x1t137rt.x1ja2u2z.xggy1nq.x1hl2dhg.xeuugli.x2lwn1j.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x2lah0s.xdl72j9.x1phubyo.xqeqjp1.xc5r6h4.xjqpnuy.x1i10hfl", ".x1nhvcw1.x1oa3qoh.x1cy8zhl.xqjyukv.x1a02dak.xdt5ytf.xeuugli.x2lwn1j.x1iyjqo2.xryxfnj.x1plvlek.x1n2onr6.xvc5jky.x4ii5y1.x11t971q.xr1yuqi.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.html-div > .x5n08af.xo1l8bm.xvs91rp.x1i0vuye.x1943h6x.x1fgarty.x1cpjm7i.x1gmr53x.xhkezso.x1s928wv.x1vvkbs.x13faqbe.x1fj9vlw.xeuugli.x193iq5w.x15dsfln.xyejjpt.x1n2onr6.xryxfnj.x1plvlek.x1lliihq", ".xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.x12qyh8a.xckx8r1.x1p2znge.xum2pek.xvbhtw8.x1c1uobl.xwib8y2.xyri2b.x1y1aw1k.x1nhvcw1.x1a02dak.x1q0g3np.x78zum5.x178xt8z.x1yvgwvq.xso031l.x1ixjvfu.x6s0dn4", ".xl56j7k.x1oa3qoh.x1qjc9v5.xqjyukv.x1a02dak.x1q0g3np.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1n2onr6.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-div", ".x1nhvcw1.x1oa3qoh.x1qjc9v5.xqjyukv.xdt5ytf.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1n2onr6.x5u0ere.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.x14z9mp.xdj266r.html-div", ".xed3198.x1kylhsf.x4yb96v.xysibl7.x1ddxa5k.xf7dkkf.xv54qhq.xnnlda6.xpilrb4.xso031l.x1lun4ml.x178xt8z.xly64p6.xdwr3uu.x10qfohq.x6zsckl.x1n2onr6.xl56j7k.x3nfvp2.x1w60jca.x1t7ytsu.x1q0q8m5.x18b5jzi.x13fuv20.x1o29io0.xvhwddo.x11ppq56.x1ss9elp.x7r02ix.x6s0dn4.x1a2a7pz.x1lku1pv.x87ps6o.x1q0g3np.x1t137rt.x1ja2u2z.xggy1nq.x1hl2dhg.x16tdsg8.x18d9i69.xexx8yu.xeuugli.x2lwn1j.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x2lah0s.xdl72j9.x1ypdohk.x9f619.x1i10hfl", ".xc26acl.xh8yej3.x1iyjqo2", ".xh8yej3.x1g0dm76.xpdmqnj.x1p5oq8j.xwxc41k.x1qughib.x1gvbg2u.xdt5ytf.x78zum5.x9f619.x1cy8zhl", ".x5n08af.x1s688f.x1fhwpqd.x1i0vuye.x1943h6x.x1fgarty.x1cpjm7i.x1gmr53x.xhkezso.x1s928wv.x1vvkbs.x13faqbe.x1fj9vlw.xeuugli.x193iq5w.x15dsfln.xyejjpt.x1n2onr6.xryxfnj.x1plvlek.x1lliihq > .xuxw1ft.xlyipyv.x10wlt62.x6ikm8r.x193iq5w.x1lliihq", ".x10xgr34.x1n2onr6.x1lliihq", ".xl56j7k.x78zum5.x6s0dn4.x1n2onr6.x10wlt62.x6ikm8r.x1ertn4p.x1pahc9y.xeusxvb.x1c9tyrk.xnz67gz", ".xl56j7k.xdt5ytf.x78zum5.x6s0dn4 > .x5n08af.x1n2onr6.x1lliihq", ".xl56j7k.x78zum5.xmixu3c.x6s0dn4.x1oa3qoh.xqjyukv.x1q0g3np.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1uhb9sk.x1e56ztr.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.x14z9mp.xdj266r.html-div > .x5n08af.xo1l8bm.xvs91rp.x1i0vuye.x1943h6x.x1fgarty.x1cpjm7i.x1gmr53x.xhkezso.x1s928wv.x1vvkbs.x13faqbe.x1fj9vlw.xeuugli.x193iq5w.x15dsfln.xyejjpt.x1n2onr6.xryxfnj.x1plvlek.x1lliihq", ".x1nhvcw1.x1oa3qoh.x6s0dn4.xqjyukv.x1q0g3np.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1uhb9sk.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.x40hh3e.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-div", ".xl3ioum.xk4oym4.xixcex4.x1h6iz8e.x1aavi5t.x1xnnf8n.x106a9eq.xn3w4p2.x1mg3h75.x7vuprf.x1a5l9x9.x6nl9eh.x1i0vuye.x18br7mf.x5c86q.x14atkfc.x87ps6o.xlyipyv.x2b8uid.x1n2onr6.x17ydfre.xl56j7k.xwhw2v2.x1f6kntn.x78zum5.x1ypdohk.x9f619.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjyslct.x6s0dn4.x1a2a7pz.x1lku1pv.x1q0g3np.x1t137rt.x1ja2u2z.xggy1nq.x1hl2dhg.x18d9i69.xexx8yu.xeuugli.x2lwn1j.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x2lah0s.xdl72j9.x14e42zd.x1qhh985.x10w94by.x972fbf.x1phubyo.xqeqjp1.xc5r6h4.xjqpnuy.x1i10hfl", ".x1nhvcw1.x1oa3qoh.x1qjc9v5.xqjyukv.xdt5ytf.xeuugli.x2lwn1j.x1iyjqo2.x10wlt62.x6ikm8r.x1n2onr6.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-div", "._aade._aad7._aacx._aacu._aaco._ap3a > div > ._aade._aad7._aacx._aacu._aaco._ap3a", ".x1nhvcw1.x1oa3qoh.x6s0dn4.xqjyukv.x1q0g3np.xeuugli.x2lwn1j.x1iyjqo2.xryxfnj.x1plvlek.x1n2onr6.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-div", ".xxk16z8.x1n2onr6.x1lliihq", "img[src*=\"/v/t51.89012-19/573323465_1219825463302212_7278921664109726296_n.jpg\"]", ".x1n5bzlp.x1n2onr6.x1c1uobl.x18d9i69.xyri2b.xexx8yu.xt7dq6l.xt0psk2.x14e42zd.x1qhh985.x10w94by.x972fbf.x6en5u8.x1ui04y5.x1e4oeot.xr9e8f9.xjbqb8w.xt0b8zv.x14jxsvd.xlal1re.xr5sc7.xl0gqc1.x1i0vuye.x18br7mf.x5c86q.x14atkfc.x87ps6o.xlyipyv.x2b8uid.x17ydfre.xl56j7k.x1f6kntn.x1ypdohk.x9f619.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjyslct.x6s0dn4.x1a2a7pz.x1q0g3np.x1t137rt.x1ja2u2z.xggy1nq.x1hl2dhg.xeuugli.x2lwn1j.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x2lah0s.xdl72j9.x1phubyo.xqeqjp1.xc5r6h4.xjqpnuy.x1i10hfl", "._a9za._a9z6", "._aade._aad6._aacw._aaco._ap3a", ".x1nhvcw1.x1oa3qoh.x1qjc9v5.xqjyukv.x1q0g3np.xeuugli.x2lwn1j.x1iyjqo2.xryxfnj.x1plvlek.x1n2onr6.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-div", ".xv54qhq.x1hrcb2b.x1yrsyyn.x10b6aqq.x1n2onr6.x17ydfre.xl56j7k.xvs91rp.x2lah0s.x1roi4f4.x178xt8z.x13fuv20.x5ur3kl", ".xf7dkkf.xv54qhq.xo1ph6p.x1lziwak.xat24cr.x14z9mp.xdj266r.x178xt8z.x13fuv20.x1xp8e9x.x1yrsyyn.xwib8y2.x1q0g3np.x78zum5", ".x1nhvcw1.x1oa3qoh.x1qjc9v5.xc26acl.x1a02dak.x1q0g3np.xeuugli.x2lwn1j.x1iyjqo2.xryxfnj.x1plvlek.x1uhb9sk.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.x40hh3e.xjbqb8w.x5lhr3w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-div", ".x1nhvcw1.x1oa3qoh.x1qjc9v5.xqjyukv.xdt5ytf.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1n2onr6.xdwrcjd.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.xat24cr.x14z9mp.xdj266r.html-div > .x1n2onr6.x1lliihq > path", "._aar2", ".x1n2onr6.xl56j7k.xdt5ytf.x78zum5.x6s0dn4.x71s49j.x10wlt62.x6ikm8r.x1a2a7pz.x1afcbsf.x1ja2u2z", ".xl56j7k.x1oa3qoh.x1qjc9v5.xqjyukv.xdt5ytf.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1n2onr6.x13fj5qh.xdj266r.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.xat24cr.x14z9mp.html-div > .x1n2onr6.x1lliihq > path", ".x1nhvcw1.x1oa3qoh.x1qjc9v5.xqjyukv.xdt5ytf.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1uhb9sk.xseo6mj.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.html-div", ".xn3w4p2.x1nhvcw1.x1oa3qoh.x1qjc9v5.xqjyukv.xdt5ytf.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1uhb9sk.x1y1aw1k.xwib8y2.xf7dkkf.xv54qhq.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1lziwak.xat24cr.x14z9mp.xdj266r.html-div", ".xh8yej3.x1g0dm76.xpdmqnj.x1p5oq8j.xwxc41k.x1qughib.x1gvbg2u.xdt5ytf.x78zum5.x9f619.x1cy8zhl > .xh8yej3.x1n2onr6", ".xfk6m8.x1rohswg.x1n2onr6.x10wlt62.xw2csxc.x5yr21d.x1q0g3np.x78zum5.x1qjc9v5", ".xh8yej3.x11njtxf.x1n2onr6.x5yr21d.xk390pu.xln7xf2.xdt5ytf.x78zum5.x9f619.x1qjc9v5", ".x1qe1wrf.x19app5s.x7ep2pv.xwy3nlu.xdj266r.x178p66w.x1yztbdb.xvc5jky.x11t971q", ".x1nhvcw1.x1oa3qoh.x1qjc9v5.xqjyukv.xdt5ytf.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1n2onr6.xyqm7xq.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.xat24cr.x14z9mp.xdj266r.html-div > .x676frb.x1s3etm8.x1roi4f4.xo1l8bm.x1fhwpqd.x1i0vuye.x1943h6x.x1fgarty.x1cpjm7i.x1gmr53x.xhkezso.x1s928wv.x1vvkbs.x13faqbe.x1fj9vlw.xeuugli.x193iq5w.x15dsfln.xyejjpt.x1n2onr6.xryxfnj.x1plvlek.x1lliihq", ".x1nhvcw1.x1oa3qoh.x1cy8zhl.xqjyukv.xdt5ytf.x2lah0s.x1c4vz4f.xryxfnj.x1plvlek.x1n2onr6.x14z9mp.x1lziwak.x1yztbdb.xg87l8a.xbiv7yw.x16uus16.x1ga7v0g.x15mokao.x78zum5.xjbqb8w.x9f619.x1c1uobl.x18d9i69.xyri2b.xexx8yu.html-div", ".x3nfvp2.x1n5bzlp.x1n2onr6.x1c1uobl.x18d9i69.xyri2b.xexx8yu.xt7dq6l.x14e42zd.x1qhh985.x10w94by.x972fbf.x6en5u8.x1ui04y5.x1e4oeot.xr9e8f9.xjbqb8w.xt0b8zv.x14jxsvd.xlal1re.xr5sc7.xl0gqc1.x1i0vuye.x18br7mf.x5c86q.x14atkfc.x87ps6o.xlyipyv.x2b8uid.x17ydfre.xl56j7k.x1f6kntn.x1ypdohk.x9f619.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjyslct.x6s0dn4.x1a2a7pz.x1q0g3np.x1t137rt.x1ja2u2z.xggy1nq.x1hl2dhg.xeuugli.x2lwn1j.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x2lah0s.xdl72j9.x1phubyo.xqeqjp1.xc5r6h4.xjqpnuy.x1i10hfl"]],
+    ] },
+    'open.spotify.com': { name: 'spotify', groups: [
+        ["sp.upsell", "upsell and promo buttons", [".n4Ttl1dgCKAPuFlK.e-10180-legacy-button--small.encore-inverted-light-set.e-10180-button-primary__inner.e-10180-overflow-wrap-anywhere", ".encore-internal-color-text-subdued.e-10180-button-tertiary--text-subdued.e-10180-button--leading.e-10180-button-tertiary--small.e-10180-legacy-button--small.encore-text-body-small-bold.e-10180-overflow-wrap-anywhere.e-10180-legacy-button-tertiary.e-10180-legacy-button", ".n4Ttl1dgCKAPuFlK.e-10310-legacy-button--small.encore-inverted-light-set.e-10310-button-primary__inner.e-10310-overflow-wrap-anywhere", ".encore-internal-color-text-subdued.e-10310-button-tertiary--text-subdued.e-10310-button--leading.e-10310-button-tertiary--small.e-10310-legacy-button--small.encore-text-body-small-bold.e-10310-overflow-wrap-anywhere.e-10310-legacy-button-tertiary.e-10310-legacy-button", ".n4Ttl1dgCKAPuFlK.e-10451-legacy-button--small.encore-inverted-light-set.e-10451-button-primary__inner.e-10451-overflow-wrap-anywhere", ".encore-internal-color-text-subdued.e-10451-button-tertiary--text-subdued.e-10451-button--leading.e-10451-button-tertiary--small.e-10451-legacy-button--small.encore-text-body-small-bold.e-10451-overflow-wrap-anywhere.e-10451-legacy-button-tertiary.e-10451-legacy-button"]],
+        ["sp.sidebar", "sidebar sections and resize bar", [".LayoutResizer__inline-start.LayoutResizer__resize-bar", "li.yqG4N5YYcY4uEujt:nth-of-type(4) > .KzLH25pAEr43wpSc", "li.yqG4N5YYcY4uEujt:nth-of-type(6) > .KzLH25pAEr43wpSc", "div.qV_CxbowaNkMarye:nth-of-type(3) > .FLjFgCRmVaE0WSqc", "div.qV_CxbowaNkMarye:nth-of-type(3)", "section.yTHNsGSMiG01kxo3.e4IK04uNVRsB6jbO.l3tPikCftuELMOzz:nth-of-type(3) > .va5STnBzPqkIqnaT > .T9JaL14g0fwnpw83.e-10451-legacy-list-row.e-10451-box--min-size.e-10451-box--padding-block-end-custom.e-10451-box--padding-block-start-custom.e-10451-box--padding-inline-end-custom.e-10451-box--padding-inline-start-custom.e-10451-box--naked.e-10451-box > .e-10451-legacy-list-row__header", "section.yTHNsGSMiG01kxo3.e4IK04uNVRsB6jbO.l3tPikCftuELMOzz:nth-of-type(3) > .va5STnBzPqkIqnaT", "section.yTHNsGSMiG01kxo3.e4IK04uNVRsB6jbO.l3tPikCftuELMOzz:nth-of-type(2) > .CsidsUzBet0_Mp5i.XtiGtrj_ysgd8Bmv.MyaStf5D5Im3gt9M > ._2WOtop0TLUrNXAd.uvcTYGvrsVEujQSN.dxlv5wfAu8zgm7HY", "section.yTHNsGSMiG01kxo3.e4IK04uNVRsB6jbO.l3tPikCftuELMOzz:nth-of-type(2) > .va5STnBzPqkIqnaT > .T9JaL14g0fwnpw83.e-10451-legacy-list-row.e-10451-box--min-size.e-10451-box--padding-block-end-custom.e-10451-box--padding-block-start-custom.e-10451-box--padding-inline-end-custom.e-10451-box--padding-inline-start-custom.e-10451-box--naked.e-10451-box > .e-10451-legacy-list-row__header", "section.yTHNsGSMiG01kxo3.e4IK04uNVRsB6jbO.l3tPikCftuELMOzz:nth-of-type(2) > .va5STnBzPqkIqnaT > .T9JaL14g0fwnpw83.e-10451-legacy-list-row.e-10451-box--min-size.e-10451-box--padding-block-end-custom.e-10451-box--padding-block-start-custom.e-10451-box--padding-inline-end-custom.e-10451-box--padding-inline-start-custom.e-10451-box--naked.e-10451-box"]],
+        ["sp.footer", "footer and cookie banner", [".ot-sdk-container > .ot-sdk-row", ".footer"]],
+        ["sp.misc", "other buttons and panels", ["button.sXjzYBob5Y4psogB.encore-internal-color-text-subdued.e-10180-button-tertiary--text-subdued.e-10180-button-tertiary--condensed-all.encore-text-body-small-bold.e-10180-overflow-wrap-anywhere.e-10180-legacy-button-tertiary.e-10180-legacy-button > .e-10180-icon", ".x2zIrx9Juns9lNvs.NA8gTZ4nPFEEcDYv", ".esBjsh.sc-jxOSlx", ".S0nU7XTXYMOBcASz", ".kxv3By32Og8yDEXy.uBpmNFia37U4nzmX.kUHE42xvQVzWqabl._Bg_zSvFrEutyacG.encore-internal-color-text-subdued.e-10180-button-tertiary--text-subdued.e-10180-button-tertiary--icon-only.e-10180-button-tertiary--icon-only-medium.e-10180-overflow-wrap-anywhere.e-10180-legacy-button-tertiary.e-10180-legacy-button", ".Re09zcWMhYTXRj0s", ".uBpmNFia37U4nzmX.kUHE42xvQVzWqabl._Bg_zSvFrEutyacG.encore-internal-color-text-subdued.e-10180-button-tertiary--text-subdued.e-10180-button-tertiary--icon-only.e-10180-button-tertiary--icon-only-medium.e-10180-overflow-wrap-anywhere.e-10180-legacy-button-tertiary.e-10180-legacy-button", ".wJiY1vDfuci2a4db", ".vH8s0xuGZZAqkkUl", ".WXUVXy433Xk07S0H.fEThIghNSPAx5Xs3.eWU4JoxyECcwnSf_", ".B6FK5_hz1604fa07", ".e93L7rh6x8hnJ4Y3", "#react-aria1130736945-\\:r37\\:", "#react-aria1130736945-\\:r1dk\\:", "span > ._EuXSrqTA94N1Evn.encore-internal-color-text-subdued.e-10451-button-tertiary--text-subdued.e-10451-button-tertiary--icon-only.e-10451-button-tertiary--icon-only-small.e-10451-overflow-wrap-anywhere.e-10451-legacy-button-tertiary.e-10451-legacy-button > .e-10451-button__icon-wrapper > .e-10451-icon > path"]],
+    ] },
+    'x.com': { name: 'x', groups: [
+        ["x.nav", "sidebar nav links", ["a.r-1loqt21.r-1ny4l3l.r-1mkv55d.r-13qz1uu.r-1habvwh.r-16y2uox.r-eqz5dr.r-6koalj.css-175oi2r:nth-of-type(8)", "a.r-1loqt21.r-1ny4l3l.r-13qz1uu.r-cnw61z.r-1habvwh.r-16y2uox.r-eqz5dr.r-6koalj.css-175oi2r:nth-of-type(7)", "a.r-1loqt21.r-1ny4l3l.r-13qz1uu.r-cnw61z.r-1habvwh.r-16y2uox.r-eqz5dr.r-6koalj.css-175oi2r:nth-of-type(8)", "a.r-1loqt21.r-1ny4l3l.r-13qz1uu.r-cnw61z.r-1habvwh.r-16y2uox.r-eqz5dr.r-6koalj.css-175oi2r:nth-of-type(3)", "a.r-1loqt21.r-1ny4l3l.r-13qz1uu.r-cnw61z.r-1habvwh.r-16y2uox.r-eqz5dr.r-6koalj.css-175oi2r:nth-of-type(5)", "a.r-1loqt21.r-1ny4l3l.r-13qz1uu.r-cnw61z.r-1habvwh.r-16y2uox.r-eqz5dr.r-6koalj.css-175oi2r:nth-of-type(4)"]],
+        ["x.misc", "sidebar and side panel extras", [".r-bnwqim.r-u9wvl5.r-w7s2jr.r-uaa2di.r-eqz5dr.r-1habvwh.css-175oi2r", ".r-12kyg2d.r-1awozwy.r-e7q0ms.css-175oi2r > .r-1loqt21.r-1ny4l3l.r-6416eg.r-o7ynqc.r-64el8z.r-19yznuf.r-lrvibr.r-rs99b7.r-1phboty.r-sdzlij.css-175oi2r > .r-1777fci.r-bcqeeo.r-16y2uox.r-18u37iz.r-6koalj.r-1awozwy.r-b88u0q.r-rjixqe.r-a023e6.r-q4m81j.r-37j5jr.r-qvutc0.css-146c3p1", ".r-12kyg2d.r-1awozwy.r-e7q0ms.css-175oi2r", ".r-1loqt21.r-1ny4l3l.r-6416eg.r-o7ynqc.r-1fkl15p.r-64el8z.r-19yznuf.r-lrvibr.r-rs99b7.r-1phboty.r-sdzlij.css-175oi2r", ".r-1ny4l3l.r-6416eg.r-o7ynqc.r-1loqt21.r-1tfmumk.r-u8s1d.r-1777fci.r-8oi148.r-qo02w8.r-rs99b7.r-1867qdf.r-j7xza8.r-5zmot.r-1e5uvyk.r-173mn98.r-1awozwy.r-105ug2t.css-175oi2r", ".r-3pj75a.r-1w6e6rj.r-18u37iz.css-175oi2r", ".r-1ny4l3l.r-6416eg.r-o7ynqc.r-3pj75a.r-1mmae3n.r-qklmqi.r-rull8r.r-1igl3o0.css-175oi2r", ".r-ttdzmv.r-vacyoi.css-175oi2r"]],
+    ] },
+    'soundcloud.com': { name: 'soundcloud', groups: [
+        ["sc.footer", "footer and mobile apps", [".sc-border-light-top.standard.sc-text-secondary.sc-text-verylight.l-footer", ".mobileApps.g-all-transitions-200-linear.sidebarModule > .sc-border-light-bottom.sc-text-primary.sc-type-light.g-flex-row-centered-spread.sidebarHeader", ".m-sidebar.sc-clearfix.mobileAppsButtons"]],
+        ["sc.header", "header upsell, for artists, upload, messages", [".left.header__upsellWrapper", ".header__forArtistsButton.header__link", ".header__link.uploadButton", ".header__userNavMessagesButton.header__userNavButton.header__userNavItem"]],
+        ["sc.banners", "banners and credit tracker embeds", ["iframe[src*=\"/n/embeds/credit-tracker\"]", ".primary.l-inner-fullwidth.m-get_heard.sc-p-2x.sc-text-body.sc-type-medium.banner", ".visible.sc-p-2x.sc-mb-2x.sc-mx-2x.sc-border-light-bottom.featureHeader"]],
+    ] },
+    'claude.ai': { name: 'claude', groups: [
+        ["cl.misc", "header, sidebar and input extras", [".p-1\\.5.overflow-hidden.h-\\[248px\\].flex-col.flex.z-10.relative.select-none.shadow-sm.rounded-xl.border-border-300.border-0\\.5.backdrop-blur-sm.bg-bg-000\\/95", "div.group.relative:nth-of-type(4) > ._ghost_10ocf_96._fill_10ocf_9.active\\:scale-\\[1\\.0\\].active\\:bg-bg-300.overflow-hidden.\\!-outline-offset-2.before\\:\\!transition-none.\\!transition-none.px-4.\\!rounded-\\[9px\\].py-1\\.5.group.\\!min-w-0.w-full.\\!text-xs.whitespace-nowrap.min-w-\\[4rem\\].px-3.rounded-md.h-8.ease-\\[cubic-bezier\\(0\\.165\\,0\\.85\\,0\\.45\\,1\\)\\].duration-300.font-base.transition.border-transparent.disabled\\:drop-shadow-none.disabled\\:shadow-none.disabled\\:opacity-50.disabled\\:pointer-events-none.select-none.can-focus.shrink-0.isolate.relative.justify-center.items-center.inline-flex", ".cursor-pointer.hover\\:border-transparent.hover\\:text-text-000.hover\\:bg-bg-400.border-border-200\\/30.text-text-000.bg-transparent.\\!rounded-lg.rounded-md.w-8.h-8.backface-hidden.duration-100.transition.overflow-hidden.border-0\\.5.font-base-bold.disabled\\:drop-shadow-none.disabled\\:shadow-none.disabled\\:opacity-50.disabled\\:pointer-events-none.select-none.can-focus.shrink-0.isolate.relative.justify-center.items-center.inline-flex.downloads-link", "#base-ui-_r_2k1_", "#base-ui-_r_2k2_", "#_r_2k5_", "div.bg-border.h-px.my-1.comfortable\\:mx-2\\.5.compact\\:mx-2:nth-of-type(4)", ".intercom-launcher.data-\\[highlighted\\]\\:bg-fill-ghost-hover.text-primary.data-\\[disabled\\]\\:pointer-events-none.data-\\[disabled\\]\\:opacity-50.outline-none.select-none.text-body.rounded.py-\\[calc\\(\\(var\\(--cds-h-control\\)-var\\(--cds-leading-body\\)\\)\\/2\\)\\].comfortable\\:px-2\\.5.compact\\:px-2.gap-xs.items-center.w-full.flex.cds-reset", "#_r_2ju_", "div.bg-border.h-px.my-1.comfortable\\:mx-2\\.5.compact\\:mx-2:nth-of-type(6)", "li:nth-of-type(4) > .hover\\:bg-bg-200.items-center.gap-3.flex.line-clamp-1.h-9.px-3.rounded-lg.ease-in-out.transition-colors.whitespace-nowrap.block.font-base", "li:nth-of-type(7) > .hover\\:bg-bg-200.items-center.gap-3.flex.line-clamp-1.h-9.px-3.rounded-lg.ease-in-out.transition-colors.whitespace-nowrap.block.font-base", ".text-start.font-normal.text-text-500.text-xs.truncate.w-full", ".text-bg-100.bg-text-200.text-\\[16px\\].w-9.h-9.select-none.font-bold.rounded-full.justify-center.items-center.shrink-0.flex", ".overflow-visible.flex-shrink-0.gap-2.items-center.flex > .flex-shrink-0 > path", "#base-ui-_r_26e_", ".bg-bg-300.pointer-events-auto.duration-150.transition-opacity.select-none.text-text-500.sm\\:font-base.font-small.text-center.pr-2\\.5.pl-2.h-8.rounded-lg.gap-1\\.5.items-center.inline-flex.ml-0\\.5", ".cursor-pointer.hover\\:border-transparent.hover\\:text-text-000.hover\\:bg-bg-400.border-border-200.text-text-000.bg-transparent.\\!rounded-lg.rounded-md.w-8.h-8.backface-hidden.duration-100.transition.overflow-hidden.border-0\\.5.font-base-bold.disabled\\:drop-shadow-none.disabled\\:shadow-none.disabled\\:opacity-50.disabled\\:pointer-events-none.select-none.can-focus.shrink-0.isolate.relative.justify-center.items-center.inline-flex.downloads-link", ".overflow-visible.flex-shrink-0.gap-2.items-center.flex", ".delay-300.md\\:opacity-100.ease-in-out.duration-150.transition-opacity.\\!h-12.gap-1.items-center.pr-3.min-w-0.shrink-0.justify-end.flex.max-md\\:pointer-events-auto.max-md\\:self-end.max-md\\:w-fit.z-20.md\\:top-0.md\\:right-0.md\\:absolute", ".transition.hover\\:text-text-300", ".relative > .group.relative > ._ghost_10ocf_96._fill_10ocf_9.active\\:scale-\\[1\\.0\\].active\\:bg-bg-300.overflow-hidden.\\!-outline-offset-2.before\\:\\!transition-none.\\!transition-none.px-4.\\!rounded-\\[9px\\].py-1\\.5.group.\\!min-w-0.w-full.\\!text-xs.whitespace-nowrap.min-w-\\[4rem\\].px-3.rounded-md.h-8.ease-\\[cubic-bezier\\(0\\.165\\,0\\.85\\,0\\.45\\,1\\)\\].duration-300.font-base.transition.border-transparent.disabled\\:drop-shadow-none.disabled\\:shadow-none.disabled\\:opacity-50.disabled\\:pointer-events-none.select-none.can-focus.shrink-0.isolate.relative.justify-center.items-center.inline-flex", ".bg-neutral-30.pointer-events-auto.duration-150.transition-opacity.select-none.text-muted.sm\\:font-base.font-small.text-center.pr-2\\.5.pl-2.h-8.rounded-lg.gap-1\\.5.items-center.inline-flex.ml-0\\.5"]],
+    ] },
+    'reddit.com': { name: 'reddit', groups: [
+        ["rd.sidebar", "sidebar extras, advertise, footer links", [".justify-end.flex-col.flex.grow.py-md.visible", ".nd\\:hidden > .rounded-none.border-none.bg-transparent.m-0.p-0 > .font-normal > faceplate-tracker > .mt-0.list-none.relative > .s\\:rounded-2.bg-transparent.-outline-offset-1.py-2xs.cursor-pointer.hover\\:no-underline.hover\\:bg-neutral-background-hover.hover\\:text-secondary-hover.text-secondary.gap-xs.px-md.relative.justify-between.flex", "#recent-communities-section > .rounded-none.border-none.bg-transparent.m-0.p-0 > .font-normal > .mt-0.list-none.relative > .s\\:rounded-2.bg-transparent.-outline-offset-1.py-2xs.cursor-pointer.hover\\:no-underline.hover\\:bg-neutral-background-hover.hover\\:text-secondary-hover.text-secondary.gap-xs.px-md.relative.justify-between.flex", ".border-neutral-border-weak.border-solid.border-b-sm.border-0.pb-sm.mb-sm", ".nd\\:visible > faceplate-expandable-section-helper > .rounded-none.border-none.bg-transparent.m-0.p-0 > .font-normal > .mt-0.list-none.relative > .s\\:rounded-2.bg-transparent.-outline-offset-1.py-2xs.cursor-pointer.hover\\:no-underline.hover\\:bg-neutral-background-hover.hover\\:text-secondary-hover.text-secondary.gap-xs.px-md.relative.justify-between.flex", "hr.border-neutral-border-weak.my-sm.w-100:nth-of-type(2)", ".gap-xs.items-center.flex-wrap.gap-2xs.flex.list-none.m-0.p-0.text-caption-1.text-neutral-content-weak", "advertise-button > .contents.nd\\:visible > .contents.nd\\:visible > .inline-flex.button.justify-center.items-center.icon.button-plain.px-\\[calc\\(var\\(--rem12\\)-var\\(--button-border-width\\,0px\\)\\)\\].button-medium", ".inline-flex.button.justify-center.items-center.button-plain.px-\\[calc\\(var\\(--rem12\\)-var\\(--button-border-width\\,0px\\)\\)\\].button-medium.active\\:no-underline.hover\\:no-underline.no-underline"]],
+    ] },
+    'civitai.red': { name: 'civitai', groups: [
+        ["cv.header", "header buttons, buzz, support", [".mantine-UnstyledButton-root.m_87cf2631.SupportButton-module-scss-module__Csn2Wa__supportButtonMediaQuery.SupportButton-module-scss-module__Csn2Wa__supportButtonRoyal.SupportButton-module-scss-module__Csn2Wa__supportButton.mantine-focus-auto", ".gap-3.items-center.flex > div.flex > .mantine-UnstyledButton-root.m_87cf2631.mantine-Button-root.m_77c9d27d.\\@md\\:pr-1.\\@md\\:rounded-r-none.py-2.\\!px-2.h-auto.mantine-active.mantine-focus-auto", ".mantine-UnstyledButton-root.m_87cf2631.mantine-Button-root.m_77c9d27d.HomeContentToggle-module__KEfbxa__tabHighlight.pr-4.pl-3.py-2.border-none.rounded-full.overflow-visible.h-8.mantine-active.mantine-focus-auto", ".gap-3.items-center.flex > div.flex > .mantine-UnstyledButton-root.m_87cf2631.mantine-Button-root.m_77c9d27d.\\@max-md\\:hidden.rounded-l-none.mantine-active.mantine-focus-auto", "#mantine-amuzixsny-target > .mantine-ActionIcon-icon.m_8d3afb97 > .tabler-icon-screen-share.tabler-icon", "#mantine-tyqjp6ln7-target > .mantine-ActionIcon-icon.m_8d3afb97", ".tabler-icon-eye-exclamation.tabler-icon", ".gap-3.items-center.flex > div > .mantine-Indicator-root.m_e5262200.font-bold.text-sm.items-center.flex > .mantine-UnstyledButton-root.m_87cf2631.mantine-ActionIcon-root.m_8d3f4000.mantine-active.mantine-focus-auto", ".gap-3.items-center.flex > .relative > .mantine-Indicator-root.m_e5262200.items-center.flex", ".dark\\:bg-dark-4.bg-gray-2.justify-between.my-1.-mx-1.hover\\:dark\\:bg-dark-4.\\@md\\:py-2\\.5.\\@md\\:px-3.hover\\:bg-gray-1.py-3.px-4.gap-2\\.5.items-center.flex", "#mantine-vh4bn0z8n-target > .\\@max-md\\:hidden.gap-2.items-center.flex > .mantine-Text-root.m_b6d8b162.UserBuzz-module-scss-module__Gnb6xa__withGradient.UserBuzz-module-scss-module__Gnb6xa__userBuzz.mantine-focus-auto > .mantine-Group-root.m_4081bf90", ".__m__-r643.\\@max-md\\:hidden.gap-3.justify-end.items-center.flex.mantine-Grid-col.m_96bdd299 > .mantine-Divider-root.m_3eebeb36", "img[src*=\"/xG1nkqKTMzGDvpLrqFT7WA/d1b70803-258d-4e6a-b90b-ef13773a1bb3/anim=false,width=450,optimized=true/b52bc605-cf38-47c5-ba9b-585f628b53d9-0.jpeg\"]", ".__m__-r13of.\\@max-md\\:hidden.gap-3.justify-end.items-center.flex.mantine-Grid-col.m_96bdd299 > .mantine-Divider-root.m_3eebeb36"]],
+    ] },
+    'discord.com': { name: 'discord', groups: [
+        ["dc.notice", "notice banner", [".images-dark.theme-darker.theme-dark.notice__29487"]],
+        ["dc.channels", "channel link rows", ["span > div > .container_e45859.channel__972a0 > .linkButton__972a0.interactive__972a0.interactive_f88cfd > .link__972a0", ".wrapper__553bf > .container_e45859.channel__972a0 > .linkButton__972a0.interactive__972a0.interactive_f88cfd > .link__972a0", ".content_d125d2 > li.container_e45859.channel__972a0 > .linkButton__972a0.interactive__972a0.interactive_f88cfd > .link__972a0"]],
+    ] },
+    'pinterest.com': { name: 'pinterest', groups: [
+        ["pi.misc", "page clutter", [".n62I2n.mJ2PyB.bnBtRO.aHn_t7.NYgy1O.Fm_EPH.ADXRXN > div", ".n62I2n.mJ2PyB.bnBtRO.aHn_t7.NYgy1O.Fm_EPH.ADXRXN"]],
+    ] },
+    'chess.com': { name: 'chess', groups: [
+        ["ch.ads", "ads and promo sidebar link", ["img[src*=\"/uploads/ad_image/31651.69a77f72.png\"]", ".sidebar-link-monetization-campaign.sidebar-link.cc-button-medium.cc-bg-ghost.cc-button-ghost.cc-button-component"]],
+    ] },
+    'chat.deepseek.com': { name: 'deepseek', groups: [
+        ["ds.misc", "page clutter and avatar", ["._9d8da05", "img[src*=\"/user-avatar/iGpXXdWg-8HUZ8rPFjEA7lcR\"]"]],
+    ] },
+    'utags.link': { name: 'utags', groups: [
+        ["ut.misc", "sidebar and header button", [".svelte-4ba2oq.dark\\:bg-gray-900.select-none.ease-in-out.duration-200.transition-all.pb-10.pr-2.pt-4.bg-white.overflow-y-auto.overflow-x-hidden.w-\\[var\\(--sidebar-width\\)\\].h-full.z-49.navigation-sidebar", ".gap-2.items-center.flex > button.dark\\:hover\\:bg-gray-800.dark\\:text-gray-300.hover\\:bg-gray-100.text-gray-600.p-2.rounded-full"]],
+    ] },
+    'india.numakers.com': { name: 'numakers', groups: [
+        ["nm.misc", "whatsapp button", [".qr_wa_icon"]],
+    ] },
+};
+
+// The SITES entry for a hostname: the key itself or any subdomain of it.
+const siteOf = (host) => Object.keys(SITES).find(k => host === k || host.endsWith('.' + k)) || null;
+// Stylesheet text for the rules in force: group on, rule not switched off, skip excepted.
+const hideCss = (groups, on, off, skip) => groups.filter(([k]) => on(k)).flatMap(([, , sels]) => sels)
+    .filter(sel => !off[sel] && sel !== skip).map(sel => `${sel} { display: none !important; }`).join('\n');
 
 // Pure helpers (exported for selftest)
 const clampSeek = (cur, delta, dur) => {
@@ -485,7 +540,7 @@ const SB_CATEGORIES = [['sponsor', 'sponsor'], ['selfpromo', 'self promotion'], 
 const PANEL_CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; font: 13px/1.4 system-ui, sans-serif; color: inherit; }
-.p { color: #e8e8ea; background: #1c1c20; border: 1px solid #ffffff1a; border-radius: 12px; padding: 12px; width: 240px;
+.p { color: #e8e8ea; background: #1c1c20; border: 1px solid #ffffff1a; border-radius: 12px; padding: 12px; width: 300px;
     max-height: calc(100vh - 80px); overflow: auto; box-shadow: 0 12px 40px #0008; display: grid; gap: 6px; }
 .top { display: flex; gap: 2px; align-items: center; }
 .top b { flex: 1; font-weight: 600; }
@@ -499,6 +554,18 @@ label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 input { accent-color: #4b6bfb; margin: 0; }
 .hint { font-size: 11px; opacity: .45; overflow-wrap: anywhere; }
 .hint:empty { display: none; }
+.p > *, details, summary, .rules, .rule { min-width: 0; }
+details { border-radius: 7px; }
+details[open] { background: #ffffff08; padding-bottom: 4px; }
+summary { display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; padding: 1px 0; }
+summary::before { content: '▸'; opacity: .4; font-size: 10px; width: 8px; }
+details[open] > summary::before { content: '▾'; }
+summary label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.n { font-size: 11px; opacity: .45; font-variant-numeric: tabular-nums; }
+.rules { display: grid; gap: 1px; padding-left: 14px; }
+.rule { gap: 6px; font-size: 11px; padding: 1px 4px; border-radius: 5px; }
+.rule:hover { background: #ffffff14; }
+.sel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px ui-monospace, monospace; opacity: .75; }
 `;
 
 // Same look as mark's .pill-open, in the masthead's top right where the profile picture sits.
@@ -507,6 +574,7 @@ const PILL_CSS = `
 button { position: fixed; right: 10px; top: 17px; z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333;
     border-radius: 12px; padding: 3px 10px; font: 12px system-ui; line-height: normal; cursor: pointer; opacity: .7; box-sizing: border-box; }
 button:hover { opacity: 1; }
+button.low { top: auto; bottom: 40px; }
 `;
 
 // Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.
@@ -759,62 +827,104 @@ function buildPanel() {
     } }, 'update');
     latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
     const toggle = (k, label) => h('label', {},
-        h('input', { type: 'checkbox', checked: !!cfg(k), onchange: (e) => { setCfg(k, e.target.checked); applyFeatures(); } }), label);
+        h('input', { type: 'checkbox', checked: !!cfg(k), onchange: (e) => { setCfg(k, e.target.checked); applyHide(); applyFeatures(); } }), label);
     const range = (k, label, min, max, unit) => {
         const out = h('span', {}, cfg(k) + unit);
         return h('label', { className: 'r' }, label, out,
             h('input', { type: 'range', min, max, value: cfg(k), oninput: (e) => { out.textContent = e.target.value + unit; setCfg(k, +e.target.value); applyFeatures(); } }));
     };
     root.append(h('style', {}, PANEL_CSS), h('div', { className: 'p', onkeydown: (e) => e.key === 'Escape' && closePanel() },
-        h('div', { className: 'top' }, h('b', {}, 'flush'), h('button', { title: 'the account\'s playlists', onclick: openLibrary }, 'playlists'), updateBtn, h('button', { title: 'close (esc)', onclick: closePanel }, '✕')),
-        h('b', {}, 'player'),
+        h('div', { className: 'top' }, h('b', {}, 'flush'), YT ? h('button', { title: 'the account\'s playlists', onclick: openLibrary }, 'playlists') : '', updateBtn, h('button', { title: 'close (esc)', onclick: closePanel }, '✕')),
+        ...(YT ? [h('b', {}, 'player'),
         toggle('seek', 'seek buttons and , . keys'), range('seek-step', 'seek step', 1, 60, 's'),
         toggle('miniplayer', 'miniplayer button (i)'),
         toggle('gesture', 'wheel gestures'), range('gesture-sensitivity', 'gesture step', 1, 20, '%'),
         h('b', {}, 'sponsorblock skip'),
         ...SB_CATEGORIES.map(([c, label]) => toggle('sb.' + c, label)),
-        toggle('sb-markers', 'seek bar markers'),
-        h('b', {}, 'hidden'),
-        ...HIDE.map(([k, label]) => toggle('hide.' + k, label)),
-        h('b', {}, 'performance'),
+        toggle('sb-markers', 'seek bar markers')] : []),
+        h('b', {}, `hidden on ${SITES[SITE].name} | hover a rule to show what it hides`),
+        ...hideGroups(toggle),
+        ...(YT ? [h('b', {}, 'performance'),
         toggle('cputamer', 'cpu tamer (reload)'),
         ...(GM_info.isIncognito ? [h('b', {}, 'yt-dlp'),
-            h('button', { className: 'wide', title: 'save youtube.com cookies as Downloads/youtube-cookies.txt', onclick: () => saveCookies(say) }, 'get cookies')] : []),
+            h('button', { className: 'wide', title: 'save youtube.com cookies as Downloads/youtube-cookies.txt', onclick: () => saveCookies(say) }, 'get cookies')] : [])] : []),
         hint));
     return host;
 }
-function closePanel() { panel?.remove(); panel = null; }
+function closePanel() { panel?.remove(); panel = null; applyHide(); }
 function togglePanel() {
     if (panel) return closePanel();
     panel = buildPanel();
-    Object.assign(panel.style, { right: '10px', top: '46px' });
+    Object.assign(panel.style, YT ? { right: '10px', top: '46px' } : { right: '10px', bottom: '72px' });
     (document.fullscreenElement || document.body).append(panel);
 }
 
-let hideStyles = [];
+// SITE is the SITES key of this page, YT whether it is youtube; every player feature is youtube only.
+let SITE = null, YT = false, hideStyle;
+const ruleOff = () => GM_getValue('flush.ruleoff', {});  // selector -> 1 for a rule switched off
+// show: the rule being hovered in the panel, shown outlined instead of hidden.
+function applyHide(show) {
+    if (!hideStyle) return;
+    hideStyle.textContent = hideCss(SITES[SITE].groups, k => cfg('hide.' + k), ruleOff(), show)
+        + (show ? `\n${show} { outline: 2px solid #f0f !important; outline-offset: -2px !important; }` : '');
+}
+// The last compound of a selector, unescaped: enough to tell rules apart, the full one is the tooltip.
+const ruleName = (sel) => sel.split(/\s*>\s*|\s+/).pop().replace(/\\/g, '');
+// One group per details: its switch in the summary, its rules inside, each with its own switch and the
+// number of elements it matches on this page; 0 is a rule the site no longer carries.
+function hideGroups(toggle) {
+    return SITES[SITE].groups.map(([k, label, sels]) => {
+        const list = h('div', { className: 'rules' });
+        const d = h('details', { ontoggle: () => d.open && list.replaceChildren(...sels.map(sel => {
+            let n = 0;
+            try { n = document.querySelectorAll(sel).length; } catch { /* selector this browser rejects */ }
+            return h('label', { className: 'rule', title: sel, onmouseenter: () => applyHide(sel), onmouseleave: () => applyHide() },
+                h('input', { type: 'checkbox', checked: !ruleOff()[sel], onchange: (e) => {
+                    const off = ruleOff();
+                    if (e.target.checked) delete off[sel]; else off[sel] = 1;
+                    GM_setValue('flush.ruleoff', off);
+                    applyHide(sel);
+                } }),
+                h('span', { className: 'sel' }, ruleName(sel)), h('span', { className: 'n' }, String(n)));
+        })) }, h('summary', {}, toggle('hide.' + k, label), h('span', { className: 'n' }, String(sels.length))), list);
+        return d;
+    });
+}
 function applyFeatures() {
-    for (const [k, style] of hideStyles) style.disabled = !cfg('hide.' + k);
+    if (!YT) return;
     cfg('miniplayer') ? ensureMini() : QS('.custom-yt-mini-button')?.remove();
     cfg('seek') ? ensureSeek() : removeSeek();
     renderMarkers();
 }
 
 function main() {
-    if (cfg('cputamer')) tame(unsafeWindow);
+    SITE = siteOf(location.hostname);
+    if (!SITE) return;
+    YT = SITE === 'youtube.com';
+    if (YT && cfg('cputamer')) tame(unsafeWindow);
+    hideStyle = GM_addStyle('');
+    applyHide();
+    GM_registerMenuCommand('settings', () => togglePanel());
+    document.addEventListener('mousedown', (e) => {
+        if (panel && !e.composedPath().some(n => n === panel || n.id === 'flush-pill')) closePanel();
+    }, true);
+    const pill = () => {
+        // shadow root keeps the site's own button css off it, so it renders exactly like mark's pill
+        const el = h('div', { id: 'flush-pill' });
+        el.attachShadow({ mode: 'closed' }).append(h('style', {}, PILL_CSS), h('button', { title: 'flush settings', className: YT ? '' : 'low', onclick: togglePanel }, 'flush'));
+        document.body.append(el);
+    };
+    const ready = (fn) => document.body ? fn() : document.addEventListener('DOMContentLoaded', fn, { once: true });
+    if (!YT) return ready(pill);
 
-    hideStyles = HIDE.map(([k, , sels]) => [k, GM_addStyle(sels.map(sel => `${sel} { display: none !important; }`).join('\n'))]);
     GM_addStyle(`.custom-yt-btn svg { pointer-events: none; }
 .flush-sb-markers { position: absolute; inset: 0; pointer-events: none; z-index: 40; }
 .flush-sb-markers > div { position: absolute; top: 0; height: 100%; opacity: 0.8; }`);
 
-    GM_registerMenuCommand('settings', () => togglePanel());
     GM_registerMenuCommand('playlists', () => openLibrary());
 
     document.addEventListener('keydown', handleSeekKey, true);
     document.addEventListener('wheel', handleWheel, { capture: true, passive: false });
-    document.addEventListener('mousedown', (e) => {
-        if (panel && !e.composedPath().some(n => n === panel || n.id === 'flush-pill')) closePanel();
-    }, true);
     document.addEventListener('timeupdate', handleTime, true); // media events don't bubble, capture sees them
     window.addEventListener('yt-navigate-finish', () => {
         loadSegments();
@@ -830,15 +940,11 @@ function main() {
         if (applyTimer) return;
         applyTimer = setTimeout(() => { applyTimer = 0; applyFeatures(); }, 250);
     };
-    const observe = () => {
-        // shadow root keeps youtube's own button css off it, so it renders exactly like mark's pill
-        const pill = h('div', { id: 'flush-pill' });
-        pill.attachShadow({ mode: 'closed' }).append(h('style', {}, PILL_CSS), h('button', { title: 'flush settings', onclick: togglePanel }, 'flush'));
-        document.body.append(pill);
+    ready(() => {
+        pill();
         new MutationObserver(scheduleApply).observe(document.body, { childList: true, subtree: true }); applyFeatures(); loadSegments();
-    };
-    document.body ? observe() : document.addEventListener('DOMContentLoaded', observe, { once: true });
+    });
 }
 
-if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, HIDE, segmentAt, newer, cookieFile, parsePage, newPairs, planCleanup, editAction };
+if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, SITES, siteOf, hideCss, segmentAt, newer, cookieFile, parsePage, newPairs, planCleanup, editAction };
 else main();

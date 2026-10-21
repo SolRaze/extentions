@@ -4,7 +4,7 @@ userscript/ tampermonkey | greasemonkey scripts
 - lance/ chat exporter | usage tracker | prompt injection | greasyfork 592831
 - bridge/ open stl, 3mf, step in orcaslicer | greasyfork 592839
 - hoard/ instagram saved posts to disk by collection | offline viewer | greasyfork 598006
-- flush/ youtube player | seek | gestures | cpu tamer | hidden clutter | cookies for yt-dlp | playlists tagged in mark | greasyfork 598191
+- flush/ hidden page clutter on 14 sites, switch per element | youtube player | seek | gestures | cpu tamer | cookies for yt-dlp | playlists tagged in mark | greasyfork 598191
 - mark/ tag users, posts, links | colours, notes | per-tag hide, dim, star | tags page | tag bridge for other scripts | greasyfork 598296
 - pace/ one pace player on onepace.net | intro, outro skip | autonext | watched | pixeldrain without side bars | greasyfork 598867
 

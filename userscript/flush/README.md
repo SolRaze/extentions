@@ -1,9 +1,17 @@
 flush
 
-youtube player userscript | seek | miniplayer | gestures | sponsorblock | cpu tamer | hidden page clutter | cookies for yt-dlp | playlists tagged in mark
+page clutter hidden on youtube, instagram, spotify, x, soundcloud, claude, reddit, civitai, discord, pinterest, chess, deepseek, utags, numakers | a switch per group and per element
+youtube player | seek | miniplayer | gestures | sponsorblock | cpu tamer | cookies for yt-dlp | playlists tagged in mark
 
-features
-hidden | uBlock youtube filters as css | one switch per group | logo, menu, create and bell | profile picture | sidebar extras | buttons over the video | donations, shopping, carousels | ask button
+hidden
+uBlock filters as css, per site | SITES in flush.user.js | groups named by what they hide | all on by default
+panel lists the site's groups | switch per group | ▸ opens its rules | switch per rule | count of elements it matches here, 0 = stale
+hover a rule | its elements show with a magenta outline instead of hidden | leave restores
+youtube | logo, menu, create and bell | profile picture | sidebar extras | buttons over the video | donations, shopping, carousels | ask button
+instagram | sidebar nav | story rings | profile and saved tabs | other panels, banners, buttons
+store | flush.hide.<group> per group | flush.ruleoff selectors switched off
+
+youtube features
 cpu tamer | timer callbacks on animation frames | applies on reload
 seek buttons | , and . keys | 1-60s step
 miniplayer button | i key
@@ -26,13 +34,15 @@ export | Downloads/flush-playlists.json | library + mark tags
 store | tampermonkey storage flush.library | flush.sent pairs mark has been sent
 
 settings
-flush pill top right, where the profile picture sits | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
+flush pill top right on youtube, where the profile picture sits | bottom right above mark's pill elsewhere | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
 update | checks greasyfork when the panel opens, label shows the new version | click opens tampermonkey's install page | reload after
-sections | player | sponsorblock skip | hidden | performance | yt-dlp in private tabs | applies live | cpu tamer on reload
-all on by default | a hide turned off in 1.6 or earlier keeps every group off | sponsorblock: sponsor, self promotion, subscribe reminder | kept in tampermonkey storage
+sections | player | sponsorblock skip | hidden | performance | yt-dlp in private tabs | all but hidden youtube only | applies live | cpu tamer on reload
+all on by default | flush.hide off keeps every group without its own setting off | sponsorblock: sponsor, self promotion, subscribe reminder | kept in tampermonkey storage
 
 gotchas
-hide selectors are youtube's generated class names | a deploy renames them | stale ones just stop hiding
+hide selectors are each site's generated class names | a deploy renames them | stale ones just stop hiding, count 0 in the panel
+network filters as css | img[src*=] and iframe[src*=] | the request still goes out, only the element hides
+remove the same filters from ublock | ublock hiding them keeps the switches here from showing anything
 cpu tamer patches the page window | needs `unsafeWindow` grant
 not in embedded players | @noframes
 no innerHTML | youtube enforces trusted types
