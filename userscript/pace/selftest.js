@@ -1,7 +1,7 @@
 // Self-check for pace.user.js: chapter parsing, skip ranges, skip zones, source picking and version compare.
 // Run: node selftest.js
 const assert = require('assert');
-const { parseChpl, skipRanges, zonesOf, pickSource, newer } = require('./pace.user.js');
+const { guessTo, parseChpl, skipRanges, zonesOf, pickSource, newer } = require('./pace.user.js');
 
 // chpl v1 as muxed in One Pace files, behind padding as in a file tail
 const title = (s) => [s.length, ...Buffer.from(s)];
@@ -55,5 +55,12 @@ assert.strictEqual(pickSource({}, 'English Dub', '720p', false), null);
 assert.strictEqual(newer('1.10', '1.9'), true);
 assert.strictEqual(newer('1.2', '1.2'), false);
 assert.strictEqual(newer('1.2', '1.2.1'), false);
+
+// guessTo: the +90 s button stops being offered once the guess window has passed or it was used
+assert.strictEqual(guessTo(10, 1000, false), 100);
+assert.strictEqual(guessTo(89, 1000, false), 179);
+assert.strictEqual(guessTo(90, 1000, false), null);
+assert.strictEqual(guessTo(10, 1000, true), null);
+assert.strictEqual(guessTo(10, 50, false), 50, 'stays inside the file');
 
 console.log('ok');
