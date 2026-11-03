@@ -4,8 +4,8 @@ one pace player userscript | onepace.net watch page as one list and player | int
 pixeldrain list player | side bars hidden | opening skip
 
 onepace.net/en/watch
-page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill brings the player back
-header | ☰ far left hides the list | one piece beside it | playing arc | watched of all episodes, white line under the header | up next, click plays it | pace far right
+page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill on the page brings the player back, none in the player
+header | ☰ far left hides the list | one piece beside it | playing arc | watched of all episodes | up next, click plays it | pace far right
 list | arcs only, watched count right of each arc | one arc open at a time | playing arc opens at the top, white bar | ✓ right of a watched episode | right-click toggles watched
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it | download far right
 controls | own seek bar, play, time, mute, pip, fullscreen | under the video, overlaid only in fullscreen, hide there after 2.5 s idle | click plays, double-click fullscreen

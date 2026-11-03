@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.14
+// @version      1.15
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -225,7 +225,7 @@ function onepace() {
     style.textContent = `
         :host { all: initial; }
         * { box-sizing: border-box; }
-        .app { position: fixed; inset: 0; z-index: 2147483646; --side: 300px; display: grid; grid-template-columns: var(--side) 1fr; grid-template-rows: auto minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 13px/1.4 system-ui, sans-serif; }
+        .app { position: fixed; inset: 0; z-index: 2147483646; --side: 300px; display: grid; grid-template-columns: var(--side) 1fr; grid-template-rows: auto minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 500 14px/1.45 'Avenir Next', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
         .app[hidden] { display: none; }
         .app.nolist { grid-template-columns: 1fr; }
         .app.nolist aside { display: none; }
@@ -242,7 +242,6 @@ function onepace() {
         header .next { display: block; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; text-align: left; }
         header .next[hidden] { display: none; }
         .total { margin-left: auto; padding: 0 8px; color: #6b7480; white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .prog { position: absolute; left: 0; bottom: -1px; height: 2px; background: #fff; pointer-events: none; }
         .arc { position: sticky; top: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
         .arc:hover { background: #171c22; }
@@ -317,7 +316,7 @@ function onepace() {
     };
     const check = (key, text, live) => {
         const c = el('input', { type: 'checkbox', checked: opt[key] });
-        c.onchange = () => { opt[key] = c.checked; set(key, c.checked); if (live) play(cur, video.currentTime); else refresh(); };
+        c.onchange = () => { opt[key] = c.checked; set(key, c.checked); if (live) play(cur, video.currentTime); else progress(); };
         return el('label', {}, c, text);
     };
     // mousedown default would move focus onto the button and leave a ring after the click.
@@ -422,13 +421,12 @@ function onepace() {
     const next = button('', () => play(cur + 1));
     next.className = 'next';
     const total = el('span', { className: 'total' });
-    const prog = el('div', { className: 'prog' });
     const side = button('☰', () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); });
     side.title = 'episode list';
     side.className = 'side';
     gear.className = 'gear';
     const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') },
-        el('header', {}, el('div', { className: 'brand' }, side, el('span', { className: 'logo', textContent: 'One Piece' })), arcname, total, next, gear, prog),
+        el('header', {}, el('div', { className: 'brand' }, side, el('span', { className: 'logo', textContent: 'One Piece' })), arcname, total, next, gear),
         list,
         el('main', {},
             settings,
@@ -473,7 +471,6 @@ function onepace() {
         for (const h of heads.values()) h.count.textContent = `${h.arc.eps.filter((e) => watched[e.key]).length}/${h.arc.eps.length}`;
         const seen = eps.filter((e) => watched[e.key]).length;
         total.textContent = `${seen}/${eps.length} watched`;
-        prog.style.width = `${(seen / eps.length) * 100}%`;
         const m = markOf();
         drawTicks();
         note.textContent = [ranges.length && `chapters: ${ranges.map((r) => r.title).join(', ')}`,
@@ -500,7 +497,6 @@ function onepace() {
         set('marks', marks);
         paint();
     }
-    const refresh = progress;
 
     async function play(i, at = 0, go = true) {
         if (i < 0 || i >= eps.length) return;
