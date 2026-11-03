@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.28
-// @description  instagram saved collections as a reference library: grid, graph, tags, batch collection edits, save to disk on demand
+// @version      1.29
+// @description  instagram saved collections as a reference library: grid, tags, batch collection edits, save to disk on demand
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -28,8 +28,8 @@
 // so a new one installs a second copy with an empty library.
 
 // Reads the saved feed through the same /api/v1 endpoints the web app calls, with the tab's own
-// session, and shows it in a full-screen library that covers the rest of Instagram: a grid, or a
-// graph of islands per collection and own tag, all from live CDN links, nothing stored. Selected
+// session, and shows it in a full-screen library that covers the rest of Instagram: a grid from
+// live CDN links, nothing stored. Selected
 // posts get tags and queued collection edits, which apply to the account in one paced run.
 // Save to disk, for the selection or everything, writes each post once into
 // Downloads/reference/<collection>/ and rewrites reference/index.html, a self-contained offline
@@ -164,37 +164,6 @@ function queueEdit(q, col, codes, add, has = () => false) {
     }
     if (!e.add.length && !e.rm.length) delete q[col];
     return q;
-}
-
-// Graph layout: an island per hub (collection or tag) shared by 2+ posts, each post in its
-// smallest hub's island so the specific beats the broad; the rest pool in one unnamed island ('').
-// Islands on an outward spiral, largest first; posts on a sunflower inside each, S apart.
-// Returns {islands: [{hub, n, x, y, r, members}], at: Map(code -> [x, y])}.
-const GOLD = Math.PI * (3 - Math.sqrt(5));
-function layout(items, hubsOf, S = 40) {
-    const count = new Map();
-    for (const it of items) for (const k of hubsOf(it)) count.set(k, (count.get(k) || 0) + 1);
-    const by = new Map();
-    for (const it of items) {
-        const k = hubsOf(it).filter(k => count.get(k) > 1).sort((a, b) => count.get(a) - count.get(b) || a.localeCompare(b))[0] || '';
-        (by.get(k) || by.set(k, []).get(k)).push(it);
-    }
-    const c = S * 0.7;
-    const islands = [...by].map(([hub, members]) => ({ hub, n: count.get(hub) || members.length, members, r: c * Math.sqrt(members.length) + S }))
-        .sort((a, b) => (!a.hub - !b.hub) || b.members.length - a.members.length);
-    const at = new Map(), placed = [];
-    for (const is of islands) {
-        for (let i = 0; ; i++) {
-            const d = 2.25 * S * Math.sqrt(i), x = d * Math.cos(i * GOLD), y = d * Math.sin(i * GOLD);
-            if (placed.every(p => Math.hypot(p.x - x, p.y - y) > p.r + is.r + S * 1.6)) { is.x = x; is.y = y; break; }
-        }
-        placed.push(is);
-        is.members.forEach((it, i) => {
-            const d = c * Math.sqrt(i + 0.5);
-            at.set(it.code, [is.x + d * Math.cos(i * GOLD), is.y + d * Math.sin(i * GOLD)]);
-        });
-    }
-    return { islands, at };
 }
 
 const safe = (s) => String(s).replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/^\.+/, '').trim().slice(0, 80) || '_';
@@ -459,7 +428,7 @@ function markDiff(items, colNames, own, sent) {
     return { add, rm, next };
 }
 
-if (typeof module !== 'undefined') module.exports = { expired, newer, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex, forget, queueEdit, layout, markDiff };
+if (typeof module !== 'undefined') module.exports = { expired, newer, extOf, normalize, record, renameFolders, sidecar, sidecarPath, hash, sortItems, filterItems, safe, relPath, dirsOf, dirsHave, buildIndex, forget, queueEdit, markDiff };
 else main();
 
 function main() {
@@ -502,7 +471,7 @@ function main() {
     let lib = GM_getValue(LIB_KEY, null);
     // Everything synced to disk: posts by code with local paths, never CDN urls — those expire.
     const archive = () => GM_getValue(ARC_KEY, null) || { posts: {}, profiles: {}, cols: [] };
-    const view = { col: '', type: '', q: '', sort: 'saved', graph: false };
+    const view = { col: '', type: '', q: '', sort: 'saved' };
     const colName = (id) => lib.cols.find(c => c.id === id)?.name || GM_getValue(NAMES_KEY, {})[id] || id;
     const sel = new Set();  // selected post codes
     const byCode = () => new Map((lib?.items || []).map(it => [it.code, it]));
@@ -536,8 +505,6 @@ function main() {
         #hoard .tile.sel img { opacity: .75; }
         #hoard [hidden] { display: none !important; }
         #hoard .selbar { order: 3; flex-basis: 100%; flex-wrap: wrap; }
-        #hoard .body.g { padding: 0; overflow: hidden; }
-        #hoard canvas { width: 100%; height: 100%; display: block; }
         #hoard-view { position: fixed; inset: 0; z-index: 2147483001; background: #000d; display: flex; overflow: auto; padding: 20px; gap: 16px; }
         #hoard-view .media { flex: 1; display: flex; flex-direction: column; gap: 8px; align-items: center; }
         #hoard-view .media img, #hoard-view .media video { max-width: 100%; max-height: 85vh; }
@@ -545,8 +512,10 @@ function main() {
         #hoard-view a { color: #8ab4ff; }
         #hoard-view .x { position: fixed; top: 12px; right: 16px; z-index: 1; background: #1a1a1d; color: #ddd; border: 1px solid #333;
                          border-radius: 50%; width: 32px; height: 32px; font: 16px system-ui; cursor: pointer; }
-        #hoard-pill { position: fixed; right: 10px; top: 8px; z-index: 2147482999; background: #1a1a1d; color: #ddd;
-                      border: 1px solid #333; border-radius: 12px; padding: 3px 10px; font: 12px system-ui; cursor: pointer; }
+        #hoard-pill { position: fixed; right: 0; top: calc(50% + 30px); z-index: 2147482999; background: #1a1a1d; color: #ddd;
+                      border: 1px solid #333; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; cursor: pointer;
+                      writing-mode: vertical-rl; transform: translateX(calc(100% - 6px)); }
+        #hoard-pill:hover, #hoard-pill:focus-visible { transform: none; }
     `);
 
     const h = (tag, props = {}, ...kids) => {
@@ -599,7 +568,6 @@ function main() {
     } });
     const checkUpdate = () => latest().then(v => { if (newer(v, GM_info.script.version)) updateBtn.textContent = `update ${v}`; }).catch(() => {});
 
-    const graphBtn = h('button', { textContent: 'graph', title: 'islands per collection and tag', onclick: () => { view.graph = !view.graph; render(); } });
     const applyBtn = h('button', { hidden: true, onclick: () => run(apply) });
     const discardBtn = h('button', { textContent: 'discard', hidden: true, title: 'drop every pending collection edit', onclick: () => {
         if (busy || !confirm('drop every pending collection edit?')) return;
@@ -627,7 +595,7 @@ function main() {
                     if (list.every(it => sel.has(it.code))) sel.clear(); else list.forEach(it => sel.add(it.code));
                     render();
                 } }),
-                graphBtn, applyBtn, discardBtn),
+                applyBtn, discardBtn),
             h('div', { className: 'group filters' }, colSel, typeSel, sortSel, search),
             h('div', { className: 'group tools' },
                 h('button', { textContent: 'sync to disk', title: 'download every post not on disk yet', onclick: () => run(sync) }),
@@ -748,14 +716,11 @@ function main() {
             h('option', { value: 'new', textContent: 'new collection…' }));
         if (tv) target.value = tv;
         renderQueue();
-        graphBtn.textContent = view.graph ? 'grid' : 'graph';
-        body.classList.toggle('g', view.graph && !!lib);
         if (!lib) { body.replaceChildren('no library yet — hit refresh'); return; }
         const synced = archive().posts;
         const list = shown();
         status(`${list.length} shown · ${lib.items.length} saved · ${Object.keys(synced).length} on disk · ${new Date(lib.at).toLocaleString()} · shift-click selects`);
         renderSel();
-        if (view.graph) return graph(list);
         body.replaceChildren(h('div', { className: 'grid' }, ...list.map(it =>
             h('div', { className: 'tile' + (synced[it.code] ? ' done' : '') + (sel.has(it.code) ? ' sel' : ''), onclick: e => pick(e, it, e.currentTarget) },
                 h('img', { src: it.thumb, loading: 'lazy', referrerPolicy: 'no-referrer' }),
@@ -773,7 +738,6 @@ function main() {
         selBar.hidden = !sel.size;
         selN.textContent = `${sel.size} selected`;
         moveBtn.hidden = !/^\d+$/.test(view.col);
-        if (view.graph) graph.draw?.();
     }
 
     function show(it) {
@@ -1056,91 +1020,6 @@ function main() {
         render();
         log('apply end', { sent: n, missed, unsure });
         status(`${n - missed - unsure} edits confirmed${missed ? ` · ${missed} not taken by instagram, back on the queue` : ''}${unsure ? ` · ${unsure} unconfirmed` : ''}`);
-    }
-
-    // Islands per collection and own tag (layout above), thumbs from the live CDN links.
-    // Drag pans, wheel zooms, click opens or selects a post, click a heading filters by it.
-    const thumbs = new Map();
-    function graph(list) {
-        const S = 40, hubsOf = (it) => [...it.cols.map(c => 'col:' + c), ...(tags[it.code] || []).map(t => 'tag:' + t)];
-        const { islands, at } = layout(list, hubsOf, S);
-        const cv = h('canvas');
-        body.replaceChildren(cv);
-        const ctx = cv.getContext('2d'), dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
-        cv.width = W * dpr; cv.height = H * dpr;
-        const label = (hub) => hub.startsWith('tag:') ? '#' + hub.slice(4) : colName(hub.slice(4));
-        const b = islands.length ? [Math.min(...islands.map(i => i.x - i.r)), Math.min(...islands.map(i => i.y - i.r)) - S,
-            Math.max(...islands.map(i => i.x + i.r)), Math.max(...islands.map(i => i.y + i.r))] : [-S, -S, S, S];
-        const k0 = Math.min(4, 0.95 * Math.min(W / (b[2] - b[0]), H / (b[3] - b[1])));
-        const T = { k: k0, x: -k0 * (b[0] + b[2]) / 2, y: -k0 * (b[1] + b[3]) / 2 };
-        const heads = [];
-        const img = (it) => {
-            let im = thumbs.get(it.code);
-            if (!im) {
-                im = new Image();
-                im.referrerPolicy = 'no-referrer';
-                im.onload = () => graph.draw();
-                im.src = it.thumb;
-                thumbs.set(it.code, im);
-            }
-            return im.naturalWidth ? im : null;
-        };
-        let queued = false;
-        graph.draw = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; if (cv.isConnected) draw(); }); } };
-        function draw() {
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.clearRect(0, 0, cv.width, cv.height);
-            ctx.setTransform(dpr * T.k, 0, 0, dpr * T.k, dpr * (W / 2 + T.x), dpr * (H / 2 + T.y));
-            const x0 = (-W / 2 - T.x) / T.k - S, y0 = (-H / 2 - T.y) / T.k - S, x1 = x0 + W / T.k + 2 * S, y1 = y0 + H / T.k + 2 * S;
-            for (const it of list) {
-                const [x, y] = at.get(it.code);
-                if (x < x0 || x > x1 || y < y0 || y > y1) continue;
-                const im = S * T.k > 6 && img(it);
-                if (im) ctx.drawImage(im, x - S / 2, y - S / 2, S, S);
-                else { ctx.fillStyle = '#1a1a1d'; ctx.fillRect(x - S / 2, y - S / 2, S, S); }
-                if (sel.has(it.code)) { ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 3 / T.k; ctx.strokeRect(x - S / 2, y - S / 2, S, S); }
-            }
-            heads.length = 0;
-            const fs = 13 / T.k;
-            ctx.font = `600 ${fs}px system-ui`;
-            ctx.textAlign = 'center';
-            for (const is of islands) {
-                if (!is.hub || is.r * 2 * T.k < 40) continue;
-                const t = `${label(is.hub)} ${is.n}`, w = ctx.measureText(t).width, y = is.y - is.r - fs * 0.2;
-                ctx.fillStyle = '#0b0b0ce0';
-                ctx.fillRect(is.x - w / 2 - fs * 0.4, y - fs * 1.1, w + fs * 0.8, fs * 1.5);
-                ctx.fillStyle = is.hub.startsWith('tag:') ? '#76a98a' : '#c4a26a';
-                ctx.fillText(t, is.x, y);
-                heads.push([is, is.x - w / 2 - fs * 0.4, y - fs * 1.1, w + fs * 0.8, fs * 1.5]);
-            }
-            ctx.textAlign = 'left';
-        }
-        const world = (e) => [(e.offsetX - W / 2 - T.x) / T.k, (e.offsetY - H / 2 - T.y) / T.k];
-        let down = null;
-        cv.onmousedown = (e) => { down = { x: e.clientX, y: e.clientY, tx: T.x, ty: T.y, moved: false }; };
-        cv.onmousemove = (e) => {
-            if (!down) return;
-            T.x = down.tx + e.clientX - down.x; T.y = down.ty + e.clientY - down.y;
-            down.moved ||= Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y) > 4;
-            graph.draw();
-        };
-        cv.onmouseup = (e) => {
-            const moved = down?.moved;
-            down = null;
-            if (moved) return;
-            const [x, y] = world(e);
-            const hd = heads.find(([, hx, hy, hw, hh]) => x >= hx && x <= hx + hw && y >= hy && y <= hy + hh);
-            if (hd) { view.col = hd[0].hub.startsWith('tag:') ? hd[0].hub : hd[0].hub.slice(4); view.graph = false; return render(); }
-            const it = list.find(it => { const [px, py] = at.get(it.code); return Math.abs(px - x) <= S / 2 && Math.abs(py - y) <= S / 2; });
-            if (it) pick(e, it);
-        };
-        cv.onwheel = (e) => {
-            e.preventDefault();
-            const [x, y] = world(e), k = Math.min(30, Math.max(0.02, T.k * Math.exp(-e.deltaY * 0.0015)));
-            T.k = k; T.x = e.offsetX - W / 2 - x * k; T.y = e.offsetY - H / 2 - y * k;
-            graph.draw();
-        };
-        draw();
     }
 
     function open() {

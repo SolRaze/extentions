@@ -1,9 +1,9 @@
 hoard
 
-instagram saved collections as reference library | grid, graph, tags | batch collection edits | save to disk only when asked
+instagram saved collections as reference library | grid, tags | batch collection edits | save to disk only when asked
 
 usage
-hoard pill top-right, same spot as ✕ | or tampermonkey menu open hoard | esc clears the selection, then closes
+hoard pill right edge | 6px sliver until hover | or tampermonkey menu open hoard | esc clears the selection, then closes
 refresh pulls saved feed with tab session | nothing downloaded | cached until next refresh | cdn links in it expire, refresh again when thumbs break
 collection membership comes from each saved post | names from the collection list, else the saved page
 refresh from instagram.com/<you>/saved/ | walks the collection grid a screen at a time, learning names at every step | names kept after that
@@ -12,7 +12,7 @@ collection renamed on instagram = renamed in the archive | no redownload | tidy.
 tampermonkey menu forget posts | paste post codes or urls | dropped from the archive | sync downloads them again
 tab title reads saved on every instagram page
 instagram page clutter is hidden by flush | per element switches there
-bar | refresh, select, graph, apply, discard left | filters middle | sync to disk, log, update, ✕ right | status, then selection bar full width below | narrow window puts filters on their own row
+bar | refresh, select, apply, discard left | filters middle | sync to disk, log, update, ✕ right | status, then selection bar full width below | narrow window puts filters on their own row
 update button checks greasyfork | panel open checks once, label shows the new version | click opens tampermonkey's install page | reload instagram after
 in-tab library covers the rest of instagram | filter collection or #tag | type | user, caption or tag | sort saved | newest | oldest | user
 
@@ -21,9 +21,6 @@ shift, cmd or ctrl click selects | once anything is selected a plain click toggl
 selection bar | collection picker | add | remove | move | tag | save to disk | clear
 move shows while filtered to a collection | adds to the picked one, removes from the filtered one
 
-graph
-graph button swaps the grid for islands | one per collection or tag shared by 2+ shown posts | post sits in its smallest one | rest pool unnamed
-drag pans | wheel zooms | click post opens or selects | click heading filters the grid by it
 
 tags
 tag on the selection | space separated | -tag removes | own tags, never sent to instagram
@@ -79,22 +76,6 @@ throttled 1.5 s per feed page | 0.8 s per downloaded post | fast scraping risks 
 per-collection feeds 404 since instagram retired them | collections rebuilt from the saved feed
 media id stays a string | pk overflows a js number
 tampermonkey storage cleared = archive lost | next sync redownloads everything
-
-issues
-downloads popup flashes every file | glitches with the address bar hidden | open | fix: browser setting above
-sync counter crawls, every post failed | cdn links in the library expired | fixed 1.10 | refresh, then sync
-refresh stuck on 572 at the feed end | resumed the stale walk forever | fixed 1.10 | resumes only within an hour
-572 at the page after the last saved post | refresh again within the hour gets 572 at the same cursor | fixed 1.20 | counted as the feed end, library complete
-index.html never written | data: url over 2 MB dropped | fixed 1.8 | written from a blob
-`collection <id>` folders | sync ran before names were known | fixed 1.8 | posts wait | tidy.py moves old ones
-clicks while busy stacked `busy` in the status | fixed 1.11
-error: not_whitelisted | extension missing from the whitelist above | 1.13 names it | add it, sync again
-viewer misses .heic photos | instagram serves them as jpeg, browser renames | fixed 1.15 | extension from the served format `stp=dst-<fmt>` | rename .jpeg to .jpg, sync again
-sync fails posts after a refresh that never finished | cdn links expire hours after they load | 1.16 fails them at once, reason shown live | finish a refresh, then sync
-reload mid-refresh lost the whole walk | fixed 1.16 | saved every 25 pages | next refresh within the hour resumes
-sync grinds on, every post 'no response from the tampermonkey downloader' | display slept mid-sync, tampermonkey's downloader never answered again | 1.22 stops after 3 in a row, 1.23 holds the screen on while busy | restart helium, refresh
-every sync rewrote every sidecar, hours of json downloads, downloader hung | the feed position in each sidecar shifted with every new save | fixed 1.24 | sidecars carry no order, hashes of old ones adopted once, no rewrite
-2100 posts wait for collection names after a refresh from /saved/ | the name scan stopped while the grid was still loading, and tiles scrolled past drop out | fixed 1.25 | scans a screen at a time until the bottom gives nothing new
 
 github http://github.com/SolRaze/extentions/tree/main/userscript/hoard | greasyfork https://greasyfork.org/en/scripts/598006-hoard
 
