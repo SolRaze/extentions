@@ -22,19 +22,23 @@ kp() { keepassxc-cli show -k "$key" --no-password "$vault" "$entry" "$@" 2>/dev/
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-C() { curl -sf -c "$tmp/jar" -b "$tmp/jar" -A Mozilla/5.0 "$@"; }
+# GF_JAR keeps one login across several runs; the site rate-limits sign-in. The caller deletes it.
+jar=${GF_JAR:-$tmp/jar}
+C() { curl -sf -c "$jar" -b "$jar" -A Mozilla/5.0 "$@"; }
 tok() { grep -oE 'name="authenticity_token" value="[^"]+"' "$1" | head -1 | sed 's/.*value="//;s/"$//'; }
 site=https://greasyfork.org/en
 
 # sign-in is two posts: the password, then the same form again with the TOTP code
-C "$site/users/sign_in" -o "$tmp/a.html"
 login() {
     C "$site/users/sign_in" --data-urlencode "authenticity_token=$(tok "$1")" \
         --data-urlencode "user[email]=$(kp -a UserName)" --data-urlencode "user[password]=$(kp -s -a Password)" \
         --data-urlencode "user[remember_me]=1" "${@:2}"
 }
-login "$tmp/a.html" -o "$tmp/b.html"
-login "$tmp/b.html" --data-urlencode "user[otp_attempt]=$(kp --totp | grep -E '^[0-9]{6}$')" -o /dev/null
+if [ ! -s "$jar" ]; then
+    C "$site/users/sign_in" -o "$tmp/a.html"
+    login "$tmp/a.html" -o "$tmp/b.html"
+    login "$tmp/b.html" --data-urlencode "user[otp_attempt]=$(kp --totp | grep -E '^[0-9]{6}$')" -o /dev/null
+fi
 
 # markdown needs two trailing spaces for the readme's line breaks
 sed 's/$/  /' "$dir/README.md" > "$tmp/info.md"
