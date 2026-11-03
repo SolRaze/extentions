@@ -13,7 +13,7 @@ global.document = {
     createElement: () => ({ getContext: () => ({}) })
 };
 
-const { clampSeek, seekKeyDelta, tame, segmentAt, newer, cookieFile, parsePage, newPairs, planCleanup, editAction } = require('./flush.user.js');
+const { frameTime, fpsOf, clampSeek, seekKeyDelta, tame, segmentAt, newer, cookieFile, parsePage, newPairs, planCleanup, editAction } = require('./flush.user.js');
 
 // clampSeek: never leaves the [0, duration] range
 assert.strictEqual(clampSeek(30, 10, 100), 40);
@@ -24,6 +24,15 @@ assert.strictEqual(clampSeek(0, -10, 100), 0);
 // Live streams report duration as Infinity or NaN; seeking should still work
 assert.strictEqual(clampSeek(30, 10, Infinity), 40);
 assert.strictEqual(clampSeek(30, 10, NaN), 40);
+
+// frameTime: lands mid-frame, stepping is exact and reversible, stays in range
+assert.strictEqual(frameTime(1, 30, 1, 100), 31.5 / 30);
+assert.strictEqual(frameTime(31.5 / 30, 30, -1, 100), 30.5 / 30);
+assert.strictEqual(frameTime(0, 30, -1, 100), 0.5 / 30, 'first frame holds');
+assert.strictEqual(frameTime(100, 30, 1, 100), 100, 'last frame holds');
+for (const fps of [24, 25, 30, 60]) { let t = 0; for (let i = 0; i < 5000; i++) t = frameTime(t, fps, 1, Infinity); assert.strictEqual(Math.floor(t * fps), 5000, 'no drift at ' + fps); }
+assert.strictEqual(fpsOf('1920x1080@60 / 1920x1080@60'), 60);
+assert.strictEqual(fpsOf(undefined), 30);
 
 // seekKeyDelta: claims , and . only while playing, and never from the other bindings
 const key = (over) => ({ key: '.', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, target: null, ...over });

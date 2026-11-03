@@ -1,7 +1,7 @@
 flush
 
 page clutter hidden on youtube, instagram, spotify, x, soundcloud, claude, reddit, civitai, discord, pinterest, chess, deepseek, utags, numakers | a switch per group and per element
-youtube player | seek | miniplayer | gestures | sponsorblock | cpu tamer | cookies for yt-dlp | playlists tagged in mark
+youtube player | frame scroller | seek | miniplayer | gestures | sponsorblock | cpu tamer | cookies for yt-dlp | playlists tagged in mark
 
 hidden
 uBlock filters as css, per site | SITES in flush.user.js | groups named by what they hide | all on by default
@@ -13,6 +13,7 @@ store | flush.hide.<group> per group | flush.ruleoff selectors switched off
 
 youtube features
 cpu tamer | timer callbacks on animation frames | applies on reload
+frame scroller | top middle of the player | wheel down next frame, up previous | ‹ › step too | pauses | time and frame number | fades with the player controls
 seek buttons | , and . keys | 1-60s step
 miniplayer button | i key
 gestures | wheel on player edges | brightness left 30% | volume right 30% | 200%
@@ -36,10 +37,13 @@ store | tampermonkey storage flush.library | flush.sent pairs mark has been sent
 settings
 flush pill right edge | above mark's and hoard's | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
 update | checks greasyfork when the panel opens, label shows the new version | click opens tampermonkey's install page | reload after
-sections | player | sponsorblock skip | hidden | performance | yt-dlp in private tabs | all but hidden youtube only | applies live | cpu tamer on reload
+sections fold, state kept | player | sponsorblock skip | hidden | other: cpu tamer, cookies in private tabs | all but hidden youtube only | applies live | cpu tamer on reload
+step sliders show only while their switch is on
 all on by default | flush.hide off keeps every group without its own setting off | sponsorblock: sponsor, self promotion, subscribe reminder | kept in tampermonkey storage
+sponsorblock skips only during playback | stepping frames through a segment stays there
 
 gotchas
+frame rate read from getStatsForNerds | 30 if the player has none
 members rule also hides paid videos | same badge | join and membership rules english only
 hide selectors are each site's generated class names | a deploy renames them | stale ones just stop hiding, count 0 in the panel
 network filters as css | img[src*=] and iframe[src*=] | the request still goes out, only the element hides

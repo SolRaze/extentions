@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.11
+// @version      1.12
 // @description  decluttered youtube, instagram, spotify, x, soundcloud, claude, reddit and more, a switch per hidden element | youtube members only, paid and promo content hidden | on youtube seek buttons and keys, miniplayer, gestures, sponsorblock, cpu tamer, playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -158,6 +158,13 @@ const seekKeyDelta = ({ key, ctrlKey, metaKey, altKey, shiftKey, target }, step,
     if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return 0;
     return key === '.' ? step : -step;
 };
+// Where one frame step lands: the middle of the target frame, so float rounding never shows its neighbour.
+const frameTime = (t, fps, dir, dur) => {
+    const next = (Math.max(0, Math.floor(t * fps + 1e-3) + dir) + 0.5) / fps;
+    return dur > 0 && next > dur ? dur : next;
+};
+// The stream's frame rate from the player's "1920x1080@30 / ..." stats line; 30 when it has none.
+const fpsOf = (resolution) => +String(resolution).match(/@(\d+)/)?.[1] || 30;
 
 // Dotted versions compared numerically: 1.10 is newer than 1.9.
 const newer = (a, b) => {
@@ -247,7 +254,7 @@ const editAction = (o) => o.op === 'add' ? { action: 'ACTION_ADD_VIDEO', addedVi
     : o.set ? { action: 'ACTION_REMOVE_VIDEO', setVideoId: o.set } : { action: 'ACTION_REMOVE_VIDEO_BY_VIDEO_ID', removedVideoId: o.id };
 
 // Settings, all in tampermonkey storage. Toggles default on.
-const DEFAULTS = { cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
+const DEFAULTS = { cputamer: true, seek: true, frames: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
     'sb.sponsor': true, 'sb.selfpromo': true, 'sb.interaction': true, 'sb.intro': false, 'sb.outro': false, 'sb.preview': false, 'sb.filler': false, 'sb.music_offtopic': false };
 // a hide group without its own setting follows flush.hide, the all-groups switch
 const cfg = (k) => GM_getValue('flush.' + k, k.startsWith('hide.') ? GM_getValue('flush.hide', true) : DEFAULTS[k]);
@@ -425,6 +432,50 @@ function ensureSeek() {
     insertBtn(fwd, '.ytp-settings-button');
 }
 
+// Frame scroller at the top middle of the player: wheel or arrows step one frame and pause.
+const FRAMES_CSS = `
+.flush-frames { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 2px;
+    padding: 2px; border-radius: 14px; background: rgba(0,0,0,.65); color: #fff; font: 12px/20px system-ui, sans-serif; font-variant-numeric: tabular-nums;
+    white-space: nowrap; cursor: ns-resize; user-select: none; transition: opacity .1s; }
+.flush-frames span { min-width: 104px; text-align: center; }
+.flush-frames button { all: unset; width: 20px; text-align: center; border-radius: 10px; cursor: pointer; }
+.flush-frames button:hover { background: #fff3; }
+.ytp-autohide .flush-frames:not(:hover) { opacity: 0; }
+.ad-showing .flush-frames, .ytp-player-minimized .flush-frames { display: none; }
+`;
+const FRAME_WHEEL = 30; // wheel pixels per frame, so a trackpad's small deltas add up to one step
+const playerFps = () => fpsOf(unsafeWindow.document.getElementById('movie_player')?.getStatsForNerds?.()?.resolution);
+const stamp = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(3).padStart(6, '0')}`;
+function drawFrames() {
+    const out = QS('.flush-frames span'), v = QS('#movie_player video');
+    if (out && v) out.textContent = `${stamp(v.currentTime)} f${Math.floor(v.currentTime * playerFps() + 1e-3)}`;
+}
+function stepFrame(dir) {
+    const v = QS('#movie_player video');
+    if (!v) return;
+    v.pause();
+    v.currentTime = frameTime(v.currentTime, playerFps(), dir, v.duration);
+    drawFrames();
+}
+function ensureFrames() {
+    const p = QS('#movie_player');
+    if (QS('.flush-frames') || !p?.querySelector('video')) return;
+    let acc = 0;
+    const arrow = (txt, dir, title) => h('button', { title, onclick: () => stepFrame(dir) }, txt);
+    const el = h('div', { className: 'flush-frames', title: 'scroll: one frame per step, pauses',
+        onwheel: (e) => {
+            e.preventDefault();
+            acc += e.deltaY;
+            if (Math.abs(acc) < FRAME_WHEEL) return;
+            stepFrame(acc > 0 ? 1 : -1);
+            acc = 0;
+        } }, arrow('‹', -1, 'previous frame'), h('span'), arrow('›', 1, 'next frame'));
+    // the player reads these as its own play and pause clicks
+    for (const t of ['click', 'dblclick', 'mousedown', 'mouseup']) el.addEventListener(t, (e) => e.stopPropagation());
+    p.append(el);
+    drawFrames();
+}
+
 // Gain above 100% routes the video through Web Audio. Only wired once boost is asked for:
 // a suspended AudioContext silences the element.
 let audioCtx, gainNode, gainVideo;
@@ -445,7 +496,7 @@ function setupAudio(v) {
 
 // Wheel over the player's outer 30% bands: left brightness, right volume. Listens on the
 // document because overlays sit above the <video> and catch the events first.
-const GESTURE_SKIP = '.ytp-chrome-bottom, .ytp-popup, .ytp-settings-menu, .ytp-panel, .ytp-ce-element, .ytp-endscreen-content, .ytp-autonav-endscreen';
+const GESTURE_SKIP = '.flush-frames, .ytp-chrome-bottom, .ytp-popup, .ytp-settings-menu, .ytp-panel, .ytp-ce-element, .ytp-endscreen-content, .ytp-autonav-endscreen';
 function handleWheel(e) {
     if (e.ctrlKey || !cfg('gesture')) return;
     const p = e.target.closest?.('.html5-video-player');
@@ -490,7 +541,7 @@ function showOverlay(txt, p = QS('#movie_player')) {
     let ov = p.querySelector(':scope > .flush-overlay');
     if (!ov) {
         ov = h('div', { className: 'flush-overlay' });
-        Object.assign(ov.style, { position: 'absolute', left: '50%', top: '5%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '2rem', padding: '0.5em 1.5em', borderRadius: '1em', zIndex: '999999', pointerEvents: 'none' });
+        Object.assign(ov.style, { position: 'absolute', left: '50%', top: '48px', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '2rem', padding: '0.5em 1.5em', borderRadius: '1em', zIndex: '999999', pointerEvents: 'none' });
         p.append(ov);
     }
     ov.textContent = txt; ov.style.display = 'block';
@@ -527,7 +578,7 @@ async function loadSegments() {
 
 function handleTime(e) {
     const v = e.target;
-    if (!(v instanceof HTMLVideoElement) || !sb.segments.length || sb.id !== videoId()) return;
+    if (!(v instanceof HTMLVideoElement) || v.paused || !sb.segments.length || sb.id !== videoId()) return;
     const s = segmentAt(sb.segments, v.currentTime, (c) => cfg('sb.' + c), sb.done);
     if (!s) return;
     sb.done.add(s.UUID); // once per segment, so seeking back into it plays it
@@ -544,7 +595,12 @@ const PANEL_CSS = `
     max-height: calc(100vh - 80px); overflow: auto; box-shadow: 0 12px 40px #0008; display: grid; gap: 6px; }
 .top { display: flex; gap: 2px; align-items: center; }
 .top b { flex: 1; font-weight: 600; }
-.p > b { font-size: 11px; opacity: .45; margin-top: 4px; }
+.sec { display: grid; gap: 6px; }
+.sec[open] { background: none; padding: 0; }
+.sec > summary { font-size: 11px; font-weight: 600; opacity: .55; margin-top: 4px; }
+.sec > div { display: grid; gap: 6px; }
+.two { grid-template-columns: 1fr 1fr; }
+label:has(input:not(:checked)) + .r { display: none; }
 button { border: 0; background: none; cursor: pointer; opacity: .6; padding: 5px 8px; border-radius: 7px; white-space: nowrap; }
 button:hover { opacity: 1; background: #ffffff14; }
 .wide { opacity: 1; background: #ffffff0f; }
@@ -834,20 +890,22 @@ function buildPanel() {
         return h('label', { className: 'r' }, label, out,
             h('input', { type: 'range', min, max, value: cfg(k), oninput: (e) => { out.textContent = e.target.value + unit; setCfg(k, +e.target.value); applyFeatures(); } }));
     };
+    // A section remembers being open or closed across panels.
+    const section = (id, title, open, cls, ...kids) => h('details', { className: 'sec', open: GM_getValue('flush.sec.' + id, open), ontoggle: (e) => GM_setValue('flush.sec.' + id, e.target.open) },
+        h('summary', {}, title), h('div', { className: cls }, ...kids));
     root.append(h('style', {}, PANEL_CSS), h('div', { className: 'p', onkeydown: (e) => e.key === 'Escape' && closePanel() },
         h('div', { className: 'top' }, h('b', {}, 'flush'), YT ? h('button', { title: 'the account\'s playlists', onclick: openLibrary }, 'playlists') : '', updateBtn, h('button', { title: 'close (esc)', onclick: closePanel }, '✕')),
-        ...(YT ? [h('b', {}, 'player'),
-        toggle('seek', 'seek buttons and , . keys'), range('seek-step', 'seek step', 1, 60, 's'),
-        toggle('miniplayer', 'miniplayer button (i)'),
-        toggle('gesture', 'wheel gestures'), range('gesture-sensitivity', 'gesture step', 1, 20, '%'),
-        h('b', {}, 'sponsorblock skip'),
-        ...SB_CATEGORIES.map(([c, label]) => toggle('sb.' + c, label))] : []),
-        h('b', {}, `hidden on ${SITES[SITE].name} | hover a rule to show what it hides`),
-        ...hideGroups(toggle),
-        ...(YT ? [h('b', {}, 'performance'),
-        toggle('cputamer', 'cpu tamer (reload)'),
-        ...(GM_info.isIncognito ? [h('b', {}, 'yt-dlp'),
-            h('button', { className: 'wide', title: 'save youtube.com cookies as Downloads/youtube-cookies.txt', onclick: () => saveCookies(say) }, 'get cookies')] : [])] : []),
+        ...(YT ? [section('player', 'player', true, '',
+            toggle('frames', 'frame scroller, top of player'),
+            toggle('seek', 'seek buttons and , . keys'), range('seek-step', 'seek step', 1, 60, 's'),
+            toggle('gesture', 'wheel on edges, light and volume'), range('gesture-sensitivity', 'wheel step', 1, 20, '%'),
+            toggle('miniplayer', 'miniplayer button (i)')),
+        section('sb', 'sponsorblock skip', false, 'two', ...SB_CATEGORIES.map(([c, label]) => toggle('sb.' + c, label)))] : []),
+        section('hidden', `hidden on ${SITES[SITE].name}`, true, '',
+            h('div', { className: 'hint' }, 'hover a rule to show what it hides'), ...hideGroups(toggle)),
+        ...(YT ? [section('other', 'other', false, '',
+            toggle('cputamer', 'cpu tamer (reload)'),
+            ...(GM_info.isIncognito ? [h('button', { className: 'wide', title: 'save youtube.com cookies as Downloads/youtube-cookies.txt', onclick: () => saveCookies(say) }, 'get cookies for yt-dlp')] : []))] : []),
         hint));
     return host;
 }
@@ -894,6 +952,7 @@ function applyFeatures() {
     if (!YT) return;
     cfg('miniplayer') ? ensureMini() : QS('.custom-yt-mini-button')?.remove();
     cfg('seek') ? ensureSeek() : removeSeek();
+    cfg('frames') ? ensureFrames() : QS('.flush-frames')?.remove();
 }
 
 function main() {
@@ -916,13 +975,14 @@ function main() {
     const ready = (fn) => document.body ? fn() : document.addEventListener('DOMContentLoaded', fn, { once: true });
     if (!YT) return ready(pill);
 
-    GM_addStyle('.custom-yt-btn svg { pointer-events: none; }');
+    GM_addStyle('.custom-yt-btn svg { pointer-events: none; }' + FRAMES_CSS);
 
     GM_registerMenuCommand('playlists', () => openLibrary());
 
     document.addEventListener('keydown', handleSeekKey, true);
     document.addEventListener('wheel', handleWheel, { capture: true, passive: false });
     document.addEventListener('timeupdate', handleTime, true); // media events don't bubble, capture sees them
+    for (const t of ['timeupdate', 'seeked']) document.addEventListener(t, drawFrames, true);
     window.addEventListener('yt-navigate-finish', () => {
         loadSegments();
         const v = QS('video');
@@ -943,5 +1003,5 @@ function main() {
     });
 }
 
-if (typeof module !== 'undefined') module.exports = { clampSeek, seekKeyDelta, tame, SITES, siteOf, hideCss, segmentAt, newer, cookieFile, parsePage, newPairs, planCleanup, editAction };
+if (typeof module !== 'undefined') module.exports = { frameTime, fpsOf, clampSeek, seekKeyDelta, tame, SITES, siteOf, hideCss, segmentAt, newer, cookieFile, parsePage, newPairs, planCleanup, editAction };
 else main();
