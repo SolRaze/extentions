@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.18
+// @version      1.19
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -233,14 +233,17 @@ function onepace() {
         .app.nolist { grid-template-columns: 1fr; }
         .app.nolist aside { display: none; }
         aside { position: relative; overflow-y: auto; border-right: 1px solid #1d2229; scrollbar-width: thin; scrollbar-color: #2a313a transparent; }
-        header { position: relative; grid-column: 1 / -1; display: flex; align-items: center; height: 44px; border-bottom: 1px solid #1d2229; background: #12161b; }
+        header { position: relative; grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; height: 44px; border-bottom: 1px solid #1d2229; background: #12161b; }
         .brand { width: var(--side); align-self: stretch; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 6px; border-right: 1px solid #1d2229; }
         .app.nolist .brand { width: auto; border-right: 0; }
         header button { background: none; border: 0; padding: 4px 6px; color: #8a939e; }
         header button:hover { color: #fff; }
         header .side { font-size: 18px; line-height: 1; padding: 6px 8px; }
         header .side:hover { background: #1b2128; }
-        header .gear { margin: 0 6px 0 auto; font-size: 18px; line-height: 1; }
+        header .gear { flex: none; margin-right: 8px; }
+        header .next { min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+        header .next[hidden] { display: none; }
+        .total { flex: none; margin-left: auto; color: #6b7480; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .stage.idle .skipi:not(:focus-visible) { opacity: 0; }
         .arc { position: sticky; top: 0; z-index: 1; width: 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 12px; background: #12161b; border: 0; border-bottom: 1px solid #1d2229; border-radius: 0; text-align: left; white-space: normal; font-weight: 600; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -378,7 +381,7 @@ function onepace() {
         if (!narrow.matches) { opt.list = !off; set('list', opt.list); }
     });
     side.className = 'side';
-    const gear = named('⚙', 'settings', () => { settings.hidden = !settings.hidden; });
+    const gear = named('pace', 'settings', () => { settings.hidden = !settings.hidden; });
     gear.className = 'gear';
     const stage = el('div', { className: 'stage' }, video, ov, spin, fail, skipi,
         el('div', { className: 'ctl' }, track, el('div', { className: 'crow' }, playBtn, time, volBtn, pipBtn, fullBtn)));
@@ -432,7 +435,7 @@ function onepace() {
         } catch (e) { status.textContent = 'update check failed: ' + e.message; }
     });
     updateBtn.title = 'check greasyfork for a new version';
-    latest().then((v) => { if (newer(v, GM_info.script.version)) { updateBtn.textContent = `update ${v}`; gear.textContent = '⚙ •'; } }).catch(() => {});
+    latest().then((v) => { if (newer(v, GM_info.script.version)) { updateBtn.textContent = `update ${v}`; gear.textContent = 'pace •'; } }).catch(() => {});
     const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
     const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
     file.onchange = async () => {
@@ -481,10 +484,13 @@ function onepace() {
         el('div', { className: 'row' }, exportBtn, button('import', () => file.click()), file),
         el('div', { className: 'row' }, updateBtn, button('show onepace page', () => show(false))),
         status);
+    const next = button('', () => play(cur + 1));
+    next.className = 'next';
+    const total = el('span', { className: 'total' });
     const prevBtn = named('⏮ prev', 'previous episode', () => play(cur - 1));
     const nextBtn = named('next ⏭', 'next episode', () => play(cur + 1));
     const app = el('div', { className: 'app' + (opt.list && !narrow.matches ? '' : ' nolist') },
-        el('header', {}, el('div', { className: 'brand' }, side), gear),
+        el('header', {}, el('div', { className: 'brand' }, side), total, next, gear),
         list,
         el('main', {},
             settings,
@@ -531,6 +537,7 @@ function onepace() {
             row.lastChild.setAttribute('aria-pressed', !!watched[ep.key]);
         }
         for (const h of heads.values()) h.count.textContent = `${h.arc.eps.filter((e) => watched[e.key]).length}/${h.arc.eps.length}`;
+        total.textContent = `${eps.filter((e) => watched[e.key]).length}/${eps.length} watched`;
         const m = markOf();
         drawTicks();
         note.textContent = [ranges.length && `chapters: ${ranges.map((r) => r.title).join(', ')}`,
@@ -584,6 +591,9 @@ function onepace() {
         nextBtn.disabled = i === eps.length - 1;
         if (eps[i + 1]) nextBtn.title = `${eps[i + 1].num} · ${eps[i + 1].title} (n)`;
         if (eps[i - 1]) prevBtn.title = `${eps[i - 1].num} · ${eps[i - 1].title} (p)`;
+        const up = eps[i + 1];
+        next.hidden = !up;
+        if (up) next.textContent = `next: ${up.arc === ep.arc ? '' : arcs.find((a) => a.slug === up.arc).title + ' '}${up.num} · ${up.title}`;
         fail.hidden = true;
         desc.textContent = `${ep.desc}  [${s.label} · ${s.res}]`;
         ranges = [];

@@ -5,7 +5,7 @@ pixeldrain list player | side bars hidden | opening skip
 
 onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill on the page brings the player back, none in the player
-header | no text | ☰ far left hides the list | ⚙ far right opens settings
+header | ☰ far left hides the list | watched of all episodes | up next, click plays it | pace far right opens settings
 list | arcs only, watched count right of each arc | one arc open at a time | playing arc opens at the top, white bar | ✓ right of a watched episode, click or right-click toggles, hover shows it on the rest | rows are buttons, tab reaches them
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it, tooltips name the episode | download far right
 status | spinner after 0.4 s of buffering | a file that fails shows a message and retry
@@ -17,8 +17,8 @@ resume | each episode reopens where it stopped | dropped once watched
 info | episode number and title | description
 gestures | wheel over left 30% brightness | right 30% volume to 200% | readout over the video
 focus | a mouse click leaves no ring | keyboard focus shows a white outline
-settings | ⚙ top right | variant, resolution, cuts, skip, autonext, marks | esc or click outside closes
-update | settings button | checks greasyfork meta | installs through tampermonkey | ⚙ shows • when newer
+settings | pace top right | variant, resolution, cuts, skip, autonext, marks | esc or click outside closes
+update | settings button | checks greasyfork meta | installs through tampermonkey | pace shows • when newer
 variant | english subtitles, dub, dub with closed captions | alternate cuts toggle picks extended or g-8 cut where one exists
 resolution | 1080p, 720p, 480p | nearest carried one when missing
 skip | opening, ending, credits, preview chapters | once per file | seek back replays
