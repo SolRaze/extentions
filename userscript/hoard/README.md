@@ -1,9 +1,9 @@
 hoard
 
-instagram saved collections as reference library | grid, tags | batch collection edits | save to disk only when asked
+instagram saved collections as reference library | grid, tags | batch collection edits | save to disk only when asked | collections and tags sent to mark
 
 usage
-hoard pill right edge | 6px sliver until hover | or tampermonkey menu open hoard | esc clears the selection, then closes
+hoard pill right edge | or tampermonkey menu open hoard | esc clears the selection, then closes
 refresh pulls saved feed with tab session | nothing downloaded | cached until next refresh | cdn links in it expire, refresh again when thumbs break
 collection membership comes from each saved post | names from the collection list, else the saved page
 refresh from instagram.com/<you>/saved/ | walks the collection grid a screen at a time, learning names at every step | names kept after that

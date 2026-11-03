@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         hoard
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/hoard
-// @version      1.29
-// @description  instagram saved collections as a reference library: grid, tags, batch collection edits, save to disk on demand
+// @version      1.30
+// @description  instagram saved collections as a reference library: grid, tags, batch collection edits, save to disk on demand | collections and tags shared with mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -513,9 +513,8 @@ function main() {
         #hoard-view .x { position: fixed; top: 12px; right: 16px; z-index: 1; background: #1a1a1d; color: #ddd; border: 1px solid #333;
                          border-radius: 50%; width: 32px; height: 32px; font: 16px system-ui; cursor: pointer; }
         #hoard-pill { position: fixed; right: 0; top: calc(50% + 30px); z-index: 2147482999; background: #1a1a1d; color: #ddd;
-                      border: 1px solid #333; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; cursor: pointer;
-                      writing-mode: vertical-rl; transform: translateX(calc(100% - 6px)); }
-        #hoard-pill:hover, #hoard-pill:focus-visible { transform: none; }
+                      border: 1px solid #555; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; cursor: pointer;
+                      writing-mode: vertical-rl; }
     `);
 
     const h = (tag, props = {}, ...kids) => {
