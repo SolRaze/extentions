@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.12
+// @version      2.13
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page | shared tags for flush and hoard
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -518,6 +518,30 @@ const typing = (e) => { const t = e.composedPath()[0]; return t.isContentEditabl
 // Editor: the entry's tags on top, then every known tag as a pill sized by use. Click toggles,
 // typing filters, Enter adds what's typed, Tab picks the first pill. Every change saves at once.
 let pop = null, popAnchor = null;
+// Known tags holding word as [tag, count]: prefixes first, then most used.
+const tagMatches = (word) => {
+    const w = word.toLowerCase(), starts = ([t]) => t.toLowerCase().startsWith(w);
+    return tagCounts().filter(([t]) => t.toLowerCase().includes(w)).sort((a, b) => starts(b) - starts(a));
+};
+// Tab handler for a field: completes the last word, or the whole value with whole set, to a known tag.
+// Tab again cycles, shift+tab goes back. Focus moves on as usual when there is nothing to complete.
+function tagTab(input, whole, done) {
+    let c = null;
+    return (e) => {
+        if (e.key !== 'Tab') return;
+        if (c?.last !== input.value) {
+            const start = whole ? 0 : input.value.lastIndexOf(' ') + 1, word = input.value.slice(start);
+            const names = word ? tagMatches(word).map(([t]) => t) : [];
+            c = !names.length || (names.length === 1 && names[0] === word) ? null : { head: input.value.slice(0, start), names, i: -1 };
+        }
+        if (!c) return;
+        e.preventDefault();
+        const n = c.names.length;
+        c.i = c.i < 0 ? 0 : (c.i + (e.shiftKey ? n - 1 : 1)) % n;
+        c.last = input.value = c.head + c.names[c.i];
+        done?.();
+    };
+}
 function closePop() { pop?.flush(); pop?.remove(); pop = null; removeEventListener('scroll', placePop, true); }
 // A null anchor pins the editor to the top right (tagging the page itself).
 function placePop() {
@@ -539,7 +563,7 @@ function edit(anchor, entry) {
     const add = (t) => { if (!tags.includes(t)) tags.push(t); input.value = ''; put(); draw(); };
     const toggle = (t) => { tags = tags.includes(t) ? tags.filter(x => x !== t) : [...tags, t]; put(); draw(); };
     const typed = () => input.value.trim().replace(/\s+/g, ' ');
-    const filtered = () => { const q = typed().toLowerCase(); return tagCounts().filter(([t]) => !q || t.toLowerCase().includes(q)); };
+    const filtered = () => typed() ? tagMatches(typed()) : tagCounts();
     const input = h('input', { placeholder: 'filter or new tag', oninput: () => draw(), onkeydown: (e) => {
         e.stopPropagation(); // keep the page's own shortcuts out of the field
         const q = typed();
@@ -582,9 +606,11 @@ function openLib() {
     if (lib) return closeLib();
     const picked = new Set(), checked = new Set();
     let lastChecked = null, msg = '';
-    const search = h('input', { className: 'search', placeholder: 'search tags, titles, urls, notes', oninput: () => draw(), onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Escape') closeLib(); } });
+    const search = h('input', { className: 'search', placeholder: 'search tags, titles, urls, notes | tab completes tags', oninput: () => draw(), onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Escape') closeLib(); searchTab(e); } });
+    const searchTab = tagTab(search, false, () => draw());
     const cloud = h('div', { className: 'cloud' }), tagbar = h('div', { className: 'tagbar' }), list = h('div', { className: 'list' }), foot = h('div', { className: 'foot' });
-    const bulkIn = h('input', { placeholder: 'tag', onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') bulk(true); } });
+    const bulkIn = h('input', { placeholder: 'tag', onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') bulk(true); bulkTab(e); } });
+    const bulkTab = tagTab(bulkIn, true);
     const file = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none', onchange: async () => {
         try { const json = JSON.parse(await file.files[0].text()); snapshot(); msg = `imported ${merge(json)} entries`; } catch (err) { msg = 'import failed: ' + err.message; }
         file.value = '';
@@ -682,7 +708,6 @@ function openLib() {
     lib = h('div', { className: 'lib' },
         h('div', { className: 'top' }, h('b', {}, 'mark'), search, updateBtn, h('button', { className: 'ib', title: 'close (esc)', onclick: closeLib }, '✕')),
         h('div', {}, cloud, tagbar), list, foot);
-    lib.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pop) closeLib(); });
     root.append(lib);
     document.documentElement.style.overflow = 'hidden';
     draw();
@@ -707,7 +732,8 @@ function main() {
     pageHost = hostOf(norm(location.href));
     site = SITES[pageHost] || {};
     host = h('div', { id: 'mark-ui' });
-    root = host.attachShadow({ mode: 'closed' });
+    // Open: vimium and page hotkeys read shadowRoot.activeElement to tell typing from shortcuts; a closed root eats the letters.
+    root = host.attachShadow({ mode: 'open' });
     btn = h('button', { className: 'btn', title: 'tag (t)', onclick: () => hovered && edit(hovered), onmouseenter: () => clearTimeout(hideTimer), onmouseleave: hideBtnSoon }, '🏷');
     root.append(h('style', {}, UI_CSS), btn, h('button', { className: 'pill-open', title: 'tags page (alt+shift+t)', onclick: openLib }, 'mark'));
     GM_addStyle(PAGE_CSS + (site.css || ''));
@@ -724,6 +750,8 @@ function main() {
     root.addEventListener('mousedown', (e) => { if (pop && !e.composedPath().includes(pop)) closePop(); });
     document.addEventListener('keydown', (e) => {
         if (e.altKey && e.shiftKey && e.code === 'KeyT') { e.preventDefault(); openLib(); return; }
+        // On document so esc still closes when focus has left the field.
+        if (e.key === 'Escape' && (pop || lib)) { pop ? closePop() : closeLib(); return; }
         if (e.key === 't' && !e.ctrlKey && !e.metaKey && !e.altKey && hovered && !typing(e) && !e.composedPath().includes(host)) { e.preventDefault(); e.stopPropagation(); edit(hovered); }
     }, true);
 
@@ -739,5 +767,5 @@ function main() {
     scan();
 }
 
-if (typeof module !== 'undefined') module.exports = { newer, norm, load, match, linkMatch, merge, addTags, removeTags, tagsWith, onSite, docId, mirrorDiff, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _setHost: (hst) => { pageHost = hst; }, _store: () => store.data };
+if (typeof module !== 'undefined') module.exports = { tagMatches, newer, norm, load, match, linkMatch, merge, addTags, removeTags, tagsWith, onSite, docId, mirrorDiff, effectsOf, renameTag, retag, deleteTag, save, _setStore: (s) => { store = s; }, _setHost: (hst) => { pageHost = hst; }, _store: () => store.data };
 else main();

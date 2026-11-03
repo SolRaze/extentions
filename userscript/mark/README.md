@@ -6,7 +6,7 @@ x | reddit | github | youtube | instagram | hacker news | soundcloud | pinterest
 usage
 hover a link | 🏷 button beside it | or press t
 editor | applied tags on top | every known tag as a pill, sized by use | click toggles
-typing filters the pills | enter adds typed tag, existing casing reused | tab picks first pill | ⌫ removes last | esc closes
+typing filters the pills | enter adds typed tag, existing casing reused | tab picks first pill, prefix matches first | ⌫ removes last | esc closes
 note field per entry | shown as ✎ chip and chip tooltip
 chips after every tagged link | click opens the editor | hover shows × | × removes that tag
 menus and popups never carry chips
@@ -15,7 +15,7 @@ off-site links tag as plain links | same-site links without a rule never
 
 tags page
 mark pill right edge | alt+shift+t | or tampermonkey menu `mark` | full-tab overlay
-tag cloud sized by use | search narrows it | click tags to filter | several tags = entries carrying all
+tag cloud sized by use | search narrows it | tab completes the last word to a tag, again cycles, shift+tab back | click tags to filter | several tags = entries carrying all
 one tag picked | rename | renaming onto an existing tag merges | colour slider | effect | delete tag
 compact rows | type icon, title, chips | url and note on hover | edit | delete
 bulk | row checkboxes | shift-click extends | select all shown | add tag | remove tag | delete
@@ -58,6 +58,7 @@ instagram posts as ig:<code> | youtube videos as yt:<id> | field `mark` only, `t
 sent 2 s after a save | only changed docs | failed ones retried on the next save
 
 gotchas
+shadow root stays open | vimium and page hotkeys read the focused field through it | closed swallows typed letters
 text links only | avatars and thumbnails skipped | pinterest, civitai also take image links
 x users tagged from @handle links only
 item selectors are each site's markup | a redesign breaks effects there, chips keep working

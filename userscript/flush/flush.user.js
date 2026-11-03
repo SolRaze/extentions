@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.10
+// @version      1.11
 // @description  decluttered youtube, instagram, spotify, x, soundcloud, claude, reddit and more, a switch per hidden element | youtube members only, paid and promo content hidden | on youtube seek buttons and keys, miniplayer, gestures, sponsorblock, cpu tamer, playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -677,7 +677,7 @@ function openLibrary() {
     host.style.cssText = 'position: fixed; inset: 0; z-index: 2147483000;';
     // keys typed in the search must not reach the player
     for (const t of ['keydown', 'keyup', 'keypress', 'wheel']) host.addEventListener(t, (e) => e.stopPropagation());
-    const root = host.attachShadow({ mode: 'closed' });
+    const root = host.attachShadow({ mode: 'open' }) /* vimium reads the focused field through it */;
     let data = GM_getValue('flush.library', { at: 0, playlists: [] }), tags = {}, plan = null, busy = false;
     const statusEl = h('div', { className: 'status' }), body = h('div', { className: 'body' });
     const say = (t) => { statusEl.textContent = t; };
@@ -814,7 +814,7 @@ function buildPanel() {
     host.style.cssText = 'position: fixed; z-index: 2147483647;';
     // The player under a fullscreen panel would treat these as its own clicks and keys
     for (const t of ['click', 'dblclick', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'wheel', 'keydown', 'keyup', 'keypress']) host.addEventListener(t, (e) => e.stopPropagation());
-    const root = host.attachShadow({ mode: 'closed' });
+    const root = host.attachShadow({ mode: 'open' }) /* vimium reads the focused field through it */;
     const hint = h('div', { className: 'hint' });
     const say = (t) => { hint.textContent = t; };
     const updateBtn = h('button', { title: 'check greasyfork for a new version', onclick: async () => {

@@ -3,7 +3,7 @@ const assert = require('assert');
 global.GM_setValue = () => {};
 let gmStore;
 global.GM_getValue = () => gmStore;
-const { newer, addTags, tagsWith, _store, match, linkMatch, norm, load, merge, effectsOf, renameTag, retag, deleteTag, _setStore } = require('./mark.user.js');
+const { tagMatches, newer, addTags, tagsWith, _store, match, linkMatch, norm, load, merge, effectsOf, renameTag, retag, deleteTag, _setStore } = require('./mark.user.js');
 
 const key = (href, text) => match(href, text)?.key ?? null;
 const type = (href, text) => match(href, text)?.type ?? null;
@@ -136,6 +136,10 @@ assert.ok(newer('2.10', '2.9') && !newer('2.1', '2.1') && !newer('2.0', '2.0.1')
     assert.deepStrictEqual(Object.keys(onSite({ 'https://www.youtube.com/watch?v=jNQXAC9IVRw': 1, 'https://instagram.com/p/A': 1 })), ['https://www.youtube.com/watch?v=jNQXAC9IVRw'], 'bridge keeps to the page\'s site');
     assert.deepStrictEqual(onSite(null), {});
 }
+
+_setStore({ data: { a: { tags: ['halpha', 'alps'] }, b: { tags: ['halpha', 'Alpha'] }, c: { tags: ['halpha'] } }, meta: {} });
+assert.deepStrictEqual(tagMatches('al').map(([t]) => t), ['Alpha', 'alps', 'halpha'], 'prefixes lead, any case, the rest follow');
+assert.deepStrictEqual(tagMatches('zz'), []);
 
 console.log("ok"); // exit before the scan refresh() scheduled, there is no DOM here
 process.exit(0);
