@@ -1,16 +1,14 @@
 // ==UserScript==
 // @name         lance
 // @namespace    https://github.com/SolRaze/extentions/blob/main/userscript/lance
-// @version      1.3
-// @description  exporter, usage tracker, enter-as-newline, injection with saved prompts, per-site settings
+// @version      1.4
+// @description  claude.ai chat export, usage tracker, enter-as-newline, first-prompt text
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
 // @license      MIT
 // @icon         data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMjIgMjIiIGZpbGw9ImN1cnJlbnRDb2xvciIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNNSAxOUgzVjE3SDRWMTZINVYxNUg2VjE0SDVWMTNINlYxMkg3VjExSDlWMTBIMTBWOUgxMVY4SDEzVjdIMTRWNkgxNVY1SDE2VjRIMThWM0gxOVY0SDE4VjZIMTdWN0gxNlY4SDE1VjlIMTRWMTFIMTNWMTJIMTJWM TNIMTFWMTVIMTBWMTZIOVYxN0g4VjE2SDdWMTdINlYxOEg1WiIvPjwvc3ZnPg==
 // @include      *://claude.ai/*
-// @include      *://chat.deepseek.com/*
-// @include      *://search.brave.com/ask*
 // @noframes
 // @run-at       document-idle
 // @grant        GM_addStyle
@@ -31,44 +29,15 @@ const newer = (a, b) => {
     for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
     return false;
 };
-// Text put in front of the first prompt of a chat: prepend, then the selected prompt, each on its own.
-// '' when there is nothing to add or the input already starts with it.
-const injectPrefix = (prepend, prompt, cur) => {
-    const parts = [prepend, prompt].filter(Boolean);
-    if (!parts.length) return '';
-    const prefix = parts.join('\n\n') + '\n\n';
-    return cur.startsWith(prefix.trim()) ? '' : prefix;
-};
+// Text put in front of the first prompt of a chat. '' when there is none or the input already starts with it.
+const injectPrefix = (prepend, cur) => !prepend || cur.startsWith(prepend.trim()) ? '' : prepend + '\n\n';
 // yyyymmdd_turns_title, turns zero-padded to 4 so a folder sorts by date then length
 const makeFilename = (title, turns, d = new Date()) =>
     `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(turns).padStart(4, '0')}_${title}`;
-const csvCell = (t) => `"${String(t).replace(/"/g, '""')}"`;
-// Saved prompts from an import file: valid entries only, a title already saved is replaced.
-function mergePrompts(saved, incoming) {
-    if (!Array.isArray(incoming)) throw new Error('not a list of prompts');
-    const out = [...saved];
-    for (const p of incoming) {
-        if (typeof p?.title !== 'string' || typeof p?.content !== 'string' || !p.title.trim()) continue;
-        const entry = { title: p.title.trim(), content: p.content, enabled: p.enabled !== false };
-        const i = out.findIndex(x => x.title === entry.title);
-        i < 0 ? out.push(entry) : (out[i] = entry);
-    }
-    return out;
-}
 
-if (typeof module !== 'undefined') module.exports = { newer, injectPrefix, makeFilename, csvCell, mergePrompts };
+if (typeof module !== 'undefined') module.exports = { newer, injectPrefix, makeFilename };
 else (function () {
     'use strict';
-
-    const host = window.location.hostname;
-    const P =
-        host.includes("claude.ai")           ? "claude"   :
-        host.includes("deepseek.com")        ? "deepseek" :
-        host.includes("search.brave.com")    ? "brave"    : "unknown";
-
-    // ---- ICONS ----
-    const LANCE_ICON = `<svg class="lance-pill-icon" viewBox="0 0 22 22" fill="currentColor" aria-hidden="true"><path d="M5 19H3V17H4V16H5V15H6V14H5V13H6V12H7V11H9V10H10V9H11V8H13V7H14V6H15V5H16V4H18V3H19V4H18V6H17V7H16V8H15V9H14V11H13V12H12V13H11V15H10V16H9V17H8V16H7V17H6V18H5Z"/></svg>`;
-    const PIN_ICON = `<svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px;"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707l-1.414 1.414a.5.5 0 0 1-.707 0l-2.12-2.121-1.415 1.415 2.122 2.12a.5.5 0 0 1 0 .708l-1.414 1.414a.5.5 0 0 1-.707 0l-4.95-4.95a.5.5 0 0 1 0-.707l1.414-1.414a.5.5 0 0 1 .707 0l2.12 2.121 1.415-1.415-2.121-2.12a.5.5 0 0 1 0-.708L9.475.868a.5.5 0 0 1 .353-.146zM4.464 6.536L3.05 7.95a.5.5 0 0 0 0 .707l4.95 4.95a.5.5 0 0 0 .707 0l1.414-1.414-6.657-6.657z"/></svg>`;
 
     // claude.ai enforces trusted types; every html string goes through lance's own policy
     let policy = null;
@@ -78,201 +47,87 @@ else (function () {
 
     const qs = (sel, root = document) => root.querySelector(sel);
     const qsa = (sel, root = document) => [...root.querySelectorAll(sel)];
-    function mkEl(tag, opts = {}) {
-        const el = document.createElement(tag);
-        if (opts.html)      setHTML(el, opts.html);
-        if (opts.text)      el.textContent = opts.text;
-        if (opts.className) el.className   = opts.className;
-        if (opts.style)     Object.assign(el.style, opts.style);
-        return el;
-    }
 
-    // ---- config with per-site support ----
-    const DEFAULTS = {
-        global: {
-            shortcuts:     { meta: true },
-            enterNewline:  true,
-            pinExport:     false,
-        },
-        sites: {
-            claude:   { injectionEnabled: false, usageTracker: true, pills: { export: true }, prepend: '', savedPrompts: [], selectedPrompt: '' },
-            deepseek: { injectionEnabled: false, usageTracker: false, pills: { export: true }, prepend: '', savedPrompts: [], selectedPrompt: '' },
-            brave:    { injectionEnabled: false, usageTracker: false, pills: { export: true }, prepend: '', savedPrompts: [], selectedPrompt: '' },
-        }
-    };
-
+    // sites is the store of 1.3 and earlier: read when no flat settings exist yet, kept so its saved prompts stay in storage.
+    const DEFAULTS = { enterNewline: true, injectionEnabled: false, usageTracker: true, prepend: '' };
     function loadCfg() {
         try {
-            const raw = GM_getValue("lance_cfg");
-            if (!raw) return JSON.parse(JSON.stringify(DEFAULTS));
-            const parsed = JSON.parse(raw);
-            if (!parsed.global && !parsed.sites) {
-                const migrated = JSON.parse(JSON.stringify(DEFAULTS));
-                const flat = parsed;
-                if (flat.shortcuts) migrated.global.shortcuts = flat.shortcuts;
-                if (flat.pinExport !== undefined) migrated.global.pinExport = flat.pinExport;
-                for (const site of ['claude', 'deepseek', 'brave']) {
-                    if (flat.injectionEnabled !== undefined) migrated.sites[site].injectionEnabled = flat.injectionEnabled;
-                    if (flat.usageTracker !== undefined) migrated.sites[site].usageTracker = flat.usageTracker;
-                    if (flat.pills) migrated.sites[site].pills = { ...flat.pills };
-                    if (flat.prepend !== undefined) migrated.sites[site].prepend = flat.prepend;
-                    if (flat.savedPrompts) migrated.sites[site].savedPrompts = [...flat.savedPrompts];
-                    if (flat.selectedPrompt !== undefined) migrated.sites[site].selectedPrompt = flat.selectedPrompt;
-                }
-                return migrated;
-            }
-            parsed.global = { ...DEFAULTS.global, ...parsed.global };
-            for (const site of ['claude', 'deepseek', 'brave']) {
-                if (!parsed.sites[site]) parsed.sites[site] = JSON.parse(JSON.stringify(DEFAULTS.sites[site]));
-            }
-            return parsed;
-        } catch(_) {
-            return JSON.parse(JSON.stringify(DEFAULTS));
+            const c = JSON.parse(GM_getValue("lance_cfg") || '{}');
+            const s = c.sites?.claude;
+            if (!s || c.enterNewline !== undefined) return { ...DEFAULTS, ...c };
+            const picked = s.savedPrompts?.find(p => p.title === s.selectedPrompt && p.enabled !== false);
+            return { ...DEFAULTS, enterNewline: c.global?.enterNewline ?? true, injectionEnabled: !!s.injectionEnabled, usageTracker: s.usageTracker ?? true,
+                prepend: [s.prepend, picked?.content].filter(Boolean).join('\n\n'), sites: c.sites };
+        } catch (_) {
+            return { ...DEFAULTS };
         }
     }
     function saveCfg(c) { GM_setValue("lance_cfg", JSON.stringify(c)); }
-    let CFG = loadCfg();
+    const CFG = loadCfg();
 
-    function siteCfg() {
-        const s = P === 'unknown' ? 'claude' : P;
-        return CFG.sites[s] || CFG.sites.claude;
-    }
-
-    // deepseek's user bubbles carry a generated class name; a deploy renaming it breaks export and injection there
-    const DS_USER = 'div[class*="fbb737a4"]';
-    // The first prompt of a chat is one sent while the page holds no user message yet, so a new chat in the same tab gets it too
-    function chatEmpty() {
-        if (P === "deepseek") return !qs(DS_USER);
-        return !qs('[data-testid="user-message"]');
-    }
-
-    function getSelectedPrompt() {
-        const sc = siteCfg();
-        if (!sc.selectedPrompt) return null;
-        const found = sc.savedPrompts.find(p => p.title === sc.selectedPrompt);
-        if (!found) return null;
-        if (found.enabled === false) return null;
-        return found.content;
-    }
-
-    function getChatInput() {
-        if (P === "claude")   return qs('div.ProseMirror') || qs('[contenteditable="true"][data-placeholder]');
-        if (P === "deepseek") return qs('textarea#chat-input') || qs('textarea');
-        if (P === "brave")    return qs('textarea') || qs('[contenteditable="true"]');
-        return qs('textarea') || qs('div[contenteditable="true"]');
-    }
-
-    function getInputText(el) {
-        return (el.tagName === 'TEXTAREA' ? el.value : (el.innerText || el.textContent || '')).trim();
-    }
+    const getChatInput = () => qs('div.ProseMirror') || qs('[contenteditable="true"][data-placeholder]');
+    const findSubmit = () => qs('button[aria-label*="Send"]');
 
     function prependToInput(el, prefix) {
         el.focus();
-        if (el.tagName === 'TEXTAREA') {
-            const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
-            const cur = el.value;
-            if (nativeSetter) nativeSetter.call(el, prefix + cur);
-            else el.value = prefix + cur;
-            el.selectionStart = el.selectionEnd = prefix.length;
-            el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
-        } else {
-            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-            const firstText = walker.nextNode();
-            const sel = window.getSelection();
-            if (!sel) return;
-            const range = document.createRange();
-            if (firstText) range.setStart(firstText, 0);
-            else range.setStart(el, 0);
-            range.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(range);
-            const ok = document.execCommand('insertText', false, prefix);
-            if (!ok) {
-                try {
-                    const dt = new DataTransfer();
-                    dt.setData('text/plain', prefix);
-                    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-                } catch(_) {
-                    el.textContent = prefix + (el.textContent || '');
-                    el.dispatchEvent(new InputEvent('input', { bubbles: true }));
-                }
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        const firstText = walker.nextNode();
+        const sel = window.getSelection();
+        if (!sel) return;
+        const range = document.createRange();
+        if (firstText) range.setStart(firstText, 0);
+        else range.setStart(el, 0);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        const ok = document.execCommand('insertText', false, prefix);
+        if (!ok) {
+            try {
+                const dt = new DataTransfer();
+                dt.setData('text/plain', prefix);
+                el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+            } catch(_) {
+                el.textContent = prefix + (el.textContent || '');
+                el.dispatchEvent(new InputEvent('input', { bubbles: true }));
             }
         }
     }
 
-    // brave/ask starts its chats from the search box, outside this input, so it gets no injection
-    const INJECTS = P === "claude" || P === "deepseek";
+    // The first prompt of a chat is one sent while the page holds no user message yet, so a new chat in the same tab gets it too
     function applyInjectionIfNeeded() {
-        if (!INJECTS || !siteCfg().injectionEnabled || !chatEmpty()) return false;
+        if (!CFG.injectionEnabled || qs('[data-testid="user-message"]')) return;
         const el = getChatInput();
-        if (!el) return false;
-        const cur = getInputText(el);
-        if (!cur) return false;
-        const prefix = injectPrefix(siteCfg().prepend, getSelectedPrompt(), cur);
-        if (!prefix) return false;
-        prependToInput(el, prefix);
-        return true;
-    }
-
-    function clickSendWithInjection() {
-        applyInjectionIfNeeded();
-        const sb = findSubmit();
-        if (sb && !sb.disabled) sb.click();
-    }
-
-    function findSubmit() {
-        if (P === "deepseek") {
-            const bc = qs(".bf38813a");
-            if (!bc) return null;
-            const btns = qsa('div[role="button"].ds-button', bc);
-            for (let i = btns.length - 1; i >= 0; i--) {
-                const b = btns[i];
-                if (!b.classList.contains('ds-button--disabled')) return b;
-            }
-            return null;
-        }
-        if (P === "claude") return qs('button[aria-label*="Send"]');
-        if (P === "brave") {
-            const scope = qs('form') || document;
-            return qs('button[type="submit"]:not([disabled])', scope) ||
-                   qs('button[aria-label*="Ask" i]', scope) ||
-                   qs('button[aria-label*="Send" i]', scope) ||
-                   qs('button[type="submit"]', scope);
-        }
-        return null;
+        const cur = el && (el.innerText || el.textContent || '').trim();
+        if (!cur) return;
+        const prefix = injectPrefix(CFG.prepend, cur);
+        if (prefix) prependToInput(el, prefix);
     }
 
     function getEventTarget(e) { return e.composedPath ? e.composedPath()[0] || e.target : e.target; }
-    function isComposing(e) { return e.isComposing || e.keyCode === 229; }
 
     window.addEventListener("keydown", e => {
-        if (isComposing(e)) return;
+        if (e.key !== "Enter" || e.altKey || e.isComposing || e.keyCode === 229) return;
         const t = getEventTarget(e);
         const input = getChatInput();
-        const inChat = !!input && (input === t || input.contains(t));
-        if (CFG.global.enterNewline && e.key === "Enter" && !e.ctrlKey && !e.shiftKey && !e.metaKey && !e.altKey && inChat) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (t.tagName === "TEXTAREA") {
-                const s = t.selectionStart, v = t.value;
-                t.value = v.substring(0, s) + "\n" + v.substring(t.selectionEnd);
-                t.selectionStart = t.selectionEnd = s + 1;
-                t.dispatchEvent(new Event("input", { bubbles: true }));
-            } else {
-                const ev = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", shiftKey: true, bubbles: true, cancelable: true });
-                t.dispatchEvent(ev);
-                if (!ev.defaultPrevented) document.execCommand("insertParagraph");
-            }
+        if (!input || !(input === t || input.contains(t))) return;
+        const plain = !e.ctrlKey && !e.shiftKey && !e.metaKey;
+        if (!CFG.enterNewline) {
+            if (plain) applyInjectionIfNeeded();
             return;
         }
-        if (CFG.global.shortcuts.meta && e.key === "Enter" && (e.metaKey !== e.ctrlKey) && !e.altKey && inChat) {
+        if (plain) {
+            e.preventDefault();
+            e.stopPropagation();
+            const ev = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", shiftKey: true, bubbles: true, cancelable: true });
+            t.dispatchEvent(ev);
+            if (!ev.defaultPrevented) document.execCommand("insertParagraph");
+        } else if (e.metaKey !== e.ctrlKey) {
             const sb = findSubmit();
-            if (sb && !sb.disabled) {
-                e.preventDefault();
-                e.stopPropagation();
-                clickSendWithInjection();
-            }
-            return;
+            if (!sb || sb.disabled) return;
+            e.preventDefault();
+            e.stopPropagation();
+            applyInjectionIfNeeded();
+            sb.click();
         }
     }, true);
     // a send by mouse injects too: capture runs before the site's own click handler reads the input
@@ -282,113 +137,10 @@ else (function () {
     }, true);
 
     // ---- export functions ----
-    async function getDeepSeekContents() {
-        const vl = qs('div.ds-virtual-list') ||
-            (() => { let b = null, bH = 0; qsa('div').forEach(el => { if (el.scrollHeight > el.clientHeight + 100 && el.scrollHeight > bH) { bH = el.scrollHeight; b = el; } }); return b; })();
-        if (!vl) { console.warn('[lance] deepseek: container not found'); return []; }
-        function settle(ms) {
-            return new Promise(resolve => {
-                const cap = ms || 500;
-                let t = setTimeout(resolve, cap);
-                const obs = new MutationObserver(() => {
-                    clearTimeout(t);
-                    t = setTimeout(() => { obs.disconnect(); resolve(); }, 150);
-                });
-                obs.observe(document.body, { childList: true, subtree: true });
-                setTimeout(() => { obs.disconnect(); resolve(); }, cap);
-            });
-        }
-        const seen = new WeakSet();
-        const aMsgs = [], uMsgs = [];
-        const seenUser = new Set();
-        const BTN_SEL = 'div.ds-flex > div.ds-icon-button:nth-child(1)';
-        const USR_SEL = DS_USER;
-        // replies are read through their copy buttons, so the clipboard is put back afterwards
-        let clip = null;
-        try { clip = await navigator.clipboard.readText(); } catch(_) {}
-        async function collectVisible() {
-            qsa(USR_SEL).forEach(el => {
-                const t = el.textContent.trim();
-                if (t && !seenUser.has(t)) { seenUser.add(t); uMsgs.push(t); }
-            });
-            for (const btn of qsa(BTN_SEL)) {
-                if (seen.has(btn)) continue;
-                seen.add(btn);
-                btn.click();
-                await new Promise(r => setTimeout(r, 350));
-                try { const t = await navigator.clipboard.readText(); if (t) aMsgs.push(t); } catch(_) {}
-            }
-        }
-        vl.scrollTop = 0;
-        await settle(700);
-        await collectVisible();
-        const STEP = 1200;
-        let prev = -1, stalls = 0, step = 0;
-        while (true) {
-            const maxScroll = vl.scrollHeight - vl.clientHeight;
-            const atBottom = vl.scrollTop >= maxScroll - 200;
-            if (atBottom) break;
-            vl.scrollTop += STEP;
-            step++;
-            await settle(step < 5 ? 600 : 500);
-            await collectVisible();
-            const total = uMsgs.length + aMsgs.length;
-            if (total === prev) {
-                stalls++;
-                if (stalls >= 15) {
-                    const remaining = maxScroll - vl.scrollTop;
-                    if (remaining > 500) {
-                        vl.scrollTop += remaining / 2;
-                        stalls = 0;
-                        await settle(800);
-                        await collectVisible();
-                    } else break;
-                }
-            } else { stalls = 0; prev = total; }
-        }
-        vl.scrollTop = vl.scrollHeight;
-        await settle(600);
-        await collectVisible();
-        const result = [];
-        const pairs = Math.min(uMsgs.length, aMsgs.length);
-        for (let i = 0; i < pairs; i++) {
-            result.push({ role: 'user', text: uMsgs[i] });
-            result.push({ role: 'assistant', text: aMsgs[i] });
-        }
-        for (let i = pairs; i < aMsgs.length; i++) result.push({ role: 'assistant', text: aMsgs[i] });
-        if (clip !== null) try { await navigator.clipboard.writeText(clip); } catch(_) {}
-        return result;
-    }
-
-    function groupDeepSeekPairs(items) {
-        const pairs = [];
-        let currentQ = null, currentA = [];
-        for (const item of items) {
-            if (item.role === 'user') {
-                if (currentQ !== null) pairs.push({ q: currentQ, a: currentA.join('\n\n') });
-                currentQ = item.text; currentA = [];
-            } else if (item.role === 'assistant') {
-                if (currentQ === null) currentQ = '';
-                currentA.push(item.text);
-            }
-        }
-        if (currentQ !== null && currentA.length) pairs.push({ q: currentQ, a: currentA.join('\n\n') });
-        return pairs;
-    }
-
     function sanitize(t) { return (t || document.title || "Export").trim().replace(/[\/\\\?\%\*\:\|"<>\.]/g, "_"); }
-    function getTitle() {
-        if (P === "deepseek") {
-            const byZ = qsa('[style*="z-index"],div').find(el => getComputedStyle(el).zIndex === "12");
-            return sanitize(byZ?.textContent || qs('div[class*="chat-item--active"] span,li[class*="active"] .title,a[class*="active"] span')?.textContent);
-        }
-        if (P === "brave") return sanitize(document.title.replace(/ - Ask Brave$/, '').trim().slice(0, 50));
-        return sanitize(document.title);
-    }
 
     function toMd(html) {
         const doc = new DOMParser().parseFromString(trusted(html), "text/html");
-        const isClaude = P === "claude", isDS = P === "deepseek";
         qsa("span.katex-html", doc).forEach(e => e.remove());
         qsa("mrow", doc).forEach(e => e.remove());
         qsa('annotation[encoding="application/x-tex"]', doc).forEach(e => e.replaceWith(e.closest(".katex-display") ? `\n$$\n${e.textContent.trim()}\n$$\n` : `$${e.textContent.trim()}$`));
@@ -398,21 +150,11 @@ else (function () {
         qsa("p code", doc).forEach(e => rp(e, `\`${e.textContent}\``));
         qsa("a", doc).forEach(e => rp(e, `[${e.textContent}](${e.href})`));
         qsa("img", doc).forEach(e => rp(e, `![${e.alt}](${e.src})`));
-        if (isClaude) {
-            qsa("pre", doc).forEach(pre => {
-                const code = qs("code", pre);
-                const type = code ? Array.from(code.classList).find(c => c.startsWith("language-"))?.replace("language-","") || "" : "";
-                pre.textContent = `\n\`\`\`${type}\n${code ? code.textContent : pre.textContent}\n\`\`\`\n`;
-            });
-        } else if (isDS) {
-            qsa("pre", doc).forEach(pre => {
-                const code = qs("code", pre);
-                let type = code ? Array.from(code.classList).find(c => c.startsWith("language-"))?.replace("language-","") || "" : "";
-                if (!type) type = qs('span.code-lang,span[class*="lang"],div[class*="code-header"] span', pre.closest("div"))?.textContent.trim() || "";
-                pre.textContent = `\n\`\`\`${type}\n${code ? code.textContent : pre.textContent}\n\`\`\`\n`;
-            });
-            qsa('div[class*="think"],details.think,div.ds-think', doc).forEach(e => rp(e, `\n> **[thinking]**\n${e.textContent.trim().split("\n").map(l => `> ${l}`).join("\n")}\n`));
-        }
+        qsa("pre", doc).forEach(pre => {
+            const code = qs("code", pre);
+            const type = code ? Array.from(code.classList).find(c => c.startsWith("language-"))?.replace("language-","") || "" : "";
+            pre.textContent = `\n\`\`\`${type}\n${code ? code.textContent : pre.textContent}\n\`\`\`\n`;
+        });
         qsa("ul", doc).forEach(ul => rp(ul, "\n" + qsa(":scope>li", ul).map(li => `- ${li.textContent.trim()}`).join("\n")));
         qsa("ol", doc).forEach(ol => rp(ol, "\n" + qsa(":scope>li", ol).map((li, i) => `${i+1}. ${li.textContent.trim()}`).join("\n")));
         for (let i = 1; i <= 6; i++) qsa(`h${i}`, doc).forEach(h => rp(h, `\n${"#".repeat(i)} ${h.textContent}\n`));
@@ -443,31 +185,17 @@ else (function () {
         return "\n**attachments:**\n" + a.map(x => x.type === "image" ? `![${x.name}](${x.src})` : `- \`${x.name}\``).join("\n") + "\n";
     }
 
-    function getElements() {
-        const res = [];
-        if (P === "claude") res.push(...qsa('[data-testid="user-message"],.font-claude-response'));
-        else if (P === "brave") {
-            const nodes = qsa('div.message.user,div.message.assistant.llm-output');
-            let u = null, ais = [];
-            const flush = () => { if (!u) return; res.push(u); const w = document.createElement('div'); ais.forEach(a => w.appendChild(a.cloneNode(true))); res.push(w); u = null; ais = []; };
-            nodes.forEach(n => { if (n.classList.contains('user')) { flush(); u = n; } else if (u) ais.push(n); });
-            flush();
-        }
-        return res;
-    }
-
     function mdDoc(title, pairs) {
         const yaml = ["---",
             `title: "${title}"`,
             `date: "${new Date().toISOString()}"`,
-            `source: ${P}`,
+            `source: claude`,
             `url: "${document.URL}"`,
             `turns: ${pairs.length}`,
             "---", "", ""].join("\n");
         return yaml + pairs.map(p => `## user\n\n${p.q.trim()}\n\n## assistant\n\n${p.a.trim()}\n\n---\n\n`).join("");
     }
 
-    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     function anchorSave(text, mime, filename) {
         const u = URL.createObjectURL(new Blob([text], { type: mime }));
         const a = Object.assign(document.createElement("a"), { href: u, download: filename });
@@ -475,287 +203,41 @@ else (function () {
         setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(u); }, 0);
     }
 
-    async function fileExport(fmt) {
-        let c = "", m = "text/plain", title, fname;
-        if (P === "deepseek") {
-            const items = await getDeepSeekContents(); if (!items.length) return;
-            title = getTitle(); const pl = groupDeepSeekPairs(items);
-            fname = makeFilename(title, pl.length);
-            if (fmt === "json") { c = JSON.stringify(pl, null, 2); m = "application/json"; }
-            else if (fmt === "csv") { c = "Q,A\n" + pl.map(p => `${csvCell(p.q)},${csvCell(p.a)}`).join("\n"); m = "text/csv"; }
-            else if (fmt === "html") { c = `<html><body style="font-family:sans-serif;max-width:800px;margin:auto;padding:30px;line-height:1.7;">${pl.map(p => `<div style="background:#f4f4f5;padding:15px;border-radius:12px;margin:20px 0;"><b>Q:</b> ${esc(p.q)}</div><div style="white-space:pre-wrap"><b>A:</b> ${esc(p.a)}</div><hr/>`).join("")}</body></html>`; m = "text/html"; }
-            else if (fmt === "md") { c = mdDoc(title, pl); m = "text/markdown"; }
-            else { c = pl.map(p => `\nQ:\n${p.q}\n\nA:\n${p.a}\n\n---\n`).join(""); }
-        } else {
-            const res = getElements(); if (!res.length) return;
-            title = getTitle(); fname = makeFilename(title, Math.floor(res.length / 2));
-            const md = el => toMd(el.innerHTML), txt = el => el.textContent.trim();
-            if (fmt === "json") {
-                c = JSON.stringify(res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a.push({ q: md(x), a: md(res[i + 1]) }); return a; }, []), null, 2);
-                m = "application/json";
-            } else if (fmt === "csv") {
-                c = "Q,A\n" + res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a += `${csvCell(md(x))},${csvCell(md(res[i + 1]))}\n`; return a; }, "");
-                m = "text/csv";
-            } else if (fmt === "html") {
-                c = `<html><body style="font-family:sans-serif;max-width:800px;margin:auto;padding:30px;line-height:1.7;">${res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a += `<div style="background:#f4f4f5;padding:15px;border-radius:12px;margin:20px 0;"><b>Q:</b> ${x.innerHTML}</div><div><b>A:</b> ${res[i + 1].innerHTML}</div><hr/>`; return a; }, "")}</body></html>`;
-                m = "text/html";
-            } else if (fmt === "md") {
-                const pairs = [];
-                for (let i = 0; i < res.length - 1; i += 2) {
-                    if (!res[i + 1]) break;
-                    const att = extractAttachments(res[i]);
-                    pairs.push({ q: md(res[i]) + (att.length ? renderAttachmentsMd(att) : ''), a: md(res[i + 1]) });
-                }
-                c = mdDoc(title, pairs);
-                m = "text/markdown";
-            } else {
-                c = res.reduce((a, x, i) => { if (i % 2 === 0 && res[i + 1]) a += `\nQ:\n${txt(x)}\n\nA:\n${txt(res[i + 1])}\n\n---\n`; return a; }, "");
-            }
+    function fileExport(fmt) {
+        const res = qsa('[data-testid="user-message"],.font-claude-response');
+        if (!res.length) return;
+        const title = sanitize(document.title), pairs = [];
+        const md = el => toMd(el.innerHTML);
+        for (let i = 0; i < res.length - 1; i += 2) {
+            const att = fmt === "md" ? extractAttachments(res[i]) : [];
+            pairs.push({ q: md(res[i]) + (att.length ? renderAttachmentsMd(att) : ''), a: md(res[i + 1]) });
         }
-        anchorSave(c, m, `${fname}.${fmt}`);
+        const name = `${makeFilename(title, pairs.length)}.${fmt}`;
+        if (fmt === "json") anchorSave(JSON.stringify(pairs, null, 2), "application/json", name);
+        else anchorSave(mdDoc(title, pairs), "text/markdown", name);
     }
 
-    // ---- export pill with pin circle and edge mirroring ----
-    function buildExportPill() {
-        const box = mkEl('div', { className: 'lance-drag-box' });
-
-        // Main pill
-        const pillInner = mkEl('div', { className: 'lance-pill-inner' });
-        setHTML(pillInner, `${LANCE_ICON}<span class="lance-pill-text">lance</span>`);
-        box.appendChild(pillInner);
-
-        // Pin circle button
-        const pinCircle = mkEl('button', { className: 'lance-pin-circle' });
-        setHTML(pinCircle, PIN_ICON);
-        pinCircle.title = 'Toggle pin position';
-        box.appendChild(pinCircle);
-
-        // Menu panel
-        const menu = mkEl('div', { className: 'lance-menu-panel' });
-
-        // ---- quick injection toggle ----
-        const injToggle = mkEl('button', { className: 'lance-menu-item' });
-        const sc = siteCfg();
-        const injOn = sc.injectionEnabled;
-        setHTML(injToggle, `<span>injection</span><span class="lance-badge">${injOn ? '⚡ on' : '⚡ off'}</span>`);
-        injToggle.onclick = e => {
-            e.stopPropagation();
-            sc.injectionEnabled = !sc.injectionEnabled;
-            saveCfg(CFG);
-            setHTML(injToggle, `<span>injection</span><span class="lance-badge">${sc.injectionEnabled ? '⚡ on' : '⚡ off'}</span>`);
-            box.classList.remove('open');
+    // Tab on the right edge, a 6px sliver until hover, same slot as mark and pace, whose sites lance never runs on.
+    function buildPill() {
+        const tab = document.createElement('button');
+        tab.className = 'lance-tab'; tab.textContent = 'lance';
+        const menu = document.createElement('div');
+        menu.className = 'lance-menu'; menu.hidden = true;
+        const show = (on) => { menu.hidden = !on; tab.classList.toggle('open', on); };
+        const item = (label, fn) => {
+            const b = document.createElement('button');
+            b.className = 'lance-menu-item'; b.textContent = label;
+            b.onclick = () => { show(false); fn(); };
+            return b;
         };
-        if (INJECTS) menu.appendChild(injToggle);
-
-        // ---- export parent with submenu ----
-        const exportParent = mkEl('div', { className: 'lance-menu-parent' });
-        const parentBtn = mkEl('button', { className: 'lance-menu-item' });
-        setHTML(parentBtn, `<span>export</span><span class="lance-badge">▸</span>`);
-        exportParent.appendChild(parentBtn);
-
-        const submenu = mkEl('div', { className: 'lance-submenu' });
-        const formats = [
-            ['markdown', '.md', () => fileExport('md')],
-            ['json', '.json', () => fileExport('json')],
-            ['csv', '.csv', () => fileExport('csv')],
-            ['plain text', '.txt', () => fileExport('txt')],
-            ['html', '.html', () => fileExport('html')],
-        ];
-        formats.forEach(([name, badge, fn]) => {
-            const b = mkEl('button', { className: 'lance-menu-item' });
-            setHTML(b, `<span>${name}</span><span class="lance-badge">${badge}</span>`);
-            b.onclick = e => {
-                e.stopPropagation();
-                box.classList.remove('open');
-                fn();
-            };
-            submenu.appendChild(b);
-        });
-        exportParent.appendChild(submenu);
-        menu.appendChild(exportParent);
-
-        // parentBtn click: toggle submenu with positioning
-        parentBtn.onclick = e => {
-            e.stopPropagation();
-            const isOpen = exportParent.classList.contains('open');
-            document.querySelectorAll('.lance-menu-parent.open').forEach(el => {
-                if (el !== exportParent) el.classList.remove('open');
-            });
-            if (!isOpen) {
-                const rect = exportParent.getBoundingClientRect();
-                const subWidth = 160;
-                const spaceRight = window.innerWidth - rect.right;
-                const spaceLeft = rect.left;
-                if (spaceRight < subWidth && spaceLeft > subWidth) {
-                    exportParent.classList.add('lance-submenu-left');
-                } else {
-                    exportParent.classList.remove('lance-submenu-left');
-                }
-                exportParent.classList.add('open');
-            } else {
-                exportParent.classList.remove('open');
-            }
-        };
-
-        // settings button
-        const settingsBtn = mkEl('button', { className: 'lance-menu-item' });
-        setHTML(settingsBtn, `<span>settings</span><span class="lance-badge">⚙</span>`);
-        settingsBtn.onclick = e => { e.stopPropagation(); box.classList.remove('open'); openDashboard(); };
-        menu.appendChild(settingsBtn);
-
-        box.appendChild(menu);
-        document.body.appendChild(box);
-
-        // ---- pin circle logic ----
-        function updatePinUI() {
-            const pinned = CFG.global.pinExport;
-            pinCircle.classList.toggle('pinned', pinned);
-            pinCircle.title = pinned ? 'Unpin position' : 'Pin position';
-            box.onmousedown = pinned ? null : (e => {
-                drag = true; moved = false; x0 = e.clientX; y0 = e.clientY; l0 = box.offsetLeft; t0 = box.offsetTop; e.preventDefault();
-            });
-        }
-
-        pinCircle.onclick = e => {
-            e.stopPropagation();
-            CFG.global.pinExport = !CFG.global.pinExport;
-            saveCfg(CFG);
-            updatePinUI();
-            box.classList.remove('open');
-        };
-
-        updatePinUI();
-
-        // ---- drag logic ----
-        let drag = false, moved = false, x0, y0, l0, t0;
-        document.addEventListener('mousemove', e => {
-            if (!drag) return;
-            const dx = e.clientX - x0, dy = e.clientY - y0;
-            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
-            box.style.left = (l0 + dx) + 'px'; box.style.top = (t0 + dy) + 'px';
-            // Update menu position live while dragging if open
-            updateMenuPosition();
-        });
-        document.addEventListener('mouseup', () => {
-            if (drag && moved) {
-                GM_setValue('export_x', box.offsetLeft);
-                GM_setValue('export_y', box.offsetTop);
-                updateBoxEdgeClass();
-                clampBoxToViewport();
-            }
-            drag = false;
-        });
-
-        // ---- helper to mirror pill when near right edge ----
-        function updateBoxEdgeClass() {
-            const rect = box.getBoundingClientRect();
-            const rightEdge = rect.right;
-            const nearRight = (window.innerWidth - rightEdge) < 35;
-            box.classList.toggle('lance-drag-box-right-edge', nearRight);
-            // Also update menu position if open
-            updateMenuPosition();
-        }
-
-        function clampBoxToViewport() {
-            // ensure box's right edge is not beyond viewport
-            const rect = box.getBoundingClientRect();
-            const margin = 10;
-            if (rect.right > window.innerWidth - margin) {
-                const overflow = rect.right - (window.innerWidth - margin);
-                const newLeft = box.offsetLeft - overflow;
-                if (newLeft < 0) {
-                    box.style.left = '0px';
-                } else {
-                    box.style.left = newLeft + 'px';
-                }
-            }
-            // also ensure left edge not negative
-            if (box.offsetLeft < 0) {
-                box.style.left = '0px';
-            }
-            updateBoxEdgeClass();
-        }
-
-        // ---- live menu repositioning ----
-        function updateMenuPosition() {
-            if (!box.classList.contains('open')) return;
-            const r = box.getBoundingClientRect();
-            const isB = r.top > window.innerHeight / 2;
-            const menuWidth = 185;
-            const spaceRight = window.innerWidth - r.right;
-            const spaceLeft = r.left;
-            const anchorRight = (spaceRight < menuWidth && spaceLeft > menuWidth) ? true : false;
-            let posClass = '';
-            if (isB) {
-                posClass = anchorRight ? 'pos-bottom-right' : 'pos-bottom-left';
-            } else {
-                posClass = anchorRight ? 'pos-top-right' : 'pos-top-left';
-            }
-            // Keep the 'lance-menu-panel' base class
-            menu.className = 'lance-menu-panel';
-            menu.classList.add(posClass);
-        }
-
-        // ---- click on box toggles menu with mirroring ----
-        box.onclick = e => {
-            if (e.target.closest && e.target.closest('.lance-pin-circle')) return;
-            // the click ending a drag; cleared here because a pinned pill gets no mousedown to clear it
-            if (moved) { moved = false; return; }
-            if (box.classList.contains('open')) {
-                box.classList.remove('open');
-                document.querySelectorAll('.lance-menu-parent.open').forEach(el => el.classList.remove('open'));
-                return;
-            }
-            // open menu – set initial position
-            const sc2 = siteCfg();
-            setHTML(injToggle, `<span>injection</span><span class="lance-badge">${sc2.injectionEnabled ? '⚡ on' : '⚡ off'}</span>`);
-            box.classList.add('open');
-            document.querySelectorAll('.lance-menu-parent.open').forEach(el => el.classList.remove('open'));
-            // position it
-            updateMenuPosition();
-            // after opening, clamp and update edge class (width may have changed)
-            setTimeout(() => {
-                clampBoxToViewport();
-                updateBoxEdgeClass();
-            }, 10);
-        };
-
-        document.addEventListener('click', e => {
-            if (!box.contains(e.target)) {
-                box.classList.remove('open');
-                document.querySelectorAll('.lance-menu-parent.open').forEach(el => el.classList.remove('open'));
-            }
-        });
-
-        // ---- initial positioning ----
-        const x = GM_getValue('export_x', window.innerWidth - 160);
-        const y = GM_getValue('export_y', 8);
-        box.style.left = Math.max(0, Math.min(x, window.innerWidth - 120)) + 'px';
-        box.style.top  = Math.max(0, Math.min(y, window.innerHeight - 60)) + 'px';
-        // apply edge class
-        setTimeout(() => {
-            updateBoxEdgeClass();
-            clampBoxToViewport();
-        }, 50);
-
-        // also on resize
-        window.addEventListener('resize', () => {
-            clampBoxToViewport();
-            updateBoxEdgeClass();
-        });
-    }
-
-    function refreshPills() {
-        const box = document.querySelector('.lance-drag-box');
-        if (box) {
-            const sc = siteCfg();
-            box.style.display = sc.pills?.export !== false ? '' : 'none';
-        }
+        menu.append(item('export markdown', () => fileExport('md')), item('export json', () => fileExport('json')), item('settings', openDashboard));
+        tab.onclick = () => show(menu.hidden);
+        document.addEventListener('click', e => { if (!tab.contains(e.target) && !menu.contains(e.target)) show(false); });
+        document.body.append(tab, menu);
     }
 
     // ---- claude usage tracker ----
     const UT = (() => {
-        if (P !== 'claude') return { init() {} };
 
         const ID = 'lance-cut', SID = 'lance-cut-style', API = '/api/organizations';
         const POLL = 60000, HOVER_REFRESH = 30000, MIN_GAP = 15000, WARN = 60, DANGER = 80;
@@ -854,8 +336,7 @@ else (function () {
         }
 
         function attach() {
-            const sc = siteCfg();
-            if (!sc.usageTracker) { document.getElementById(ID)?.remove(); return; }
+            if (!CFG.usageTracker) { document.getElementById(ID)?.remove(); return; }
             const a = findAnchor(); if (!a) return;
             const existing = document.getElementById(ID);
             if (a === S.anchor && existing && a.contains(existing)) return;
@@ -964,7 +445,7 @@ else (function () {
         const hdr = document.createElement('div');
         Object.assign(hdr.style, { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' });
         const siteLabel = document.createElement('span');
-        siteLabel.textContent = `lance · ${P}`;
+        siteLabel.textContent = 'lance';
         Object.assign(siteLabel.style, { fontSize: '17px', color: wht });
         const closeBtn = document.createElement('button'); closeBtn.textContent = '✕';
         Object.assign(closeBtn.style, { background: 'none', border: 'none', color: fg2, cursor: 'pointer', fontSize: '16px', padding: '0', lineHeight: '1', transition: 'color 0.1s' });
@@ -990,288 +471,60 @@ else (function () {
         hdr.appendChild(siteLabel); hdr.appendChild(updateBtn); hdr.appendChild(closeBtn);
         dlg.appendChild(hdr);
 
-        const sc = siteCfg();
 
-        dlg.appendChild(rowEl('export button', toggle(sc.pills?.export ?? true, v => {
-            sc.pills = { ...(sc.pills || DEFAULTS.sites.claude.pills), export: v };
-            saveCfg(CFG);
-            refreshPills();
-        })));
-
-        dlg.appendChild(rowEl('enter inserts a newline (all sites)', toggle(CFG.global.enterNewline, v => {
-            CFG.global.enterNewline = v;
+        dlg.appendChild(rowEl('enter inserts a newline, cmd or ctrl + enter sends', toggle(CFG.enterNewline, v => {
+            CFG.enterNewline = v;
             saveCfg(CFG);
         })));
 
-        dlg.appendChild(rowEl('cmd / ctrl + enter sends (all sites)', toggle(CFG.global.shortcuts.meta, v => {
-            CFG.global.shortcuts.meta = v;
+        dlg.appendChild(rowEl('inject into the first prompt', toggle(CFG.injectionEnabled, v => {
+            CFG.injectionEnabled = v;
             saveCfg(CFG);
         })));
-
-        const injRow = rowEl('inject into the first prompt', toggle(sc.injectionEnabled, v => {
-            sc.injectionEnabled = v;
-            saveCfg(CFG);
-        }));
-        dlg.appendChild(injRow);
 
         const prependRow = document.createElement('div');
         Object.assign(prependRow.style, { display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px 0', borderBottom: `1px solid ${bd}` });
-        const prependLabel = document.createElement('span'); prependLabel.textContent = 'prepend (before the selected prompt):'; prependLabel.style.color = fg;
+        const prependLabel = document.createElement('span'); prependLabel.textContent = 'text put before the first prompt:'; prependLabel.style.color = fg;
         const prependInput = document.createElement('textarea');
-        prependInput.value = sc.prepend || '';
+        prependInput.value = CFG.prepend;
         Object.assign(prependInput.style, { background: bg3, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: fg, padding: '6px 8px', fontSize: '12px', resize: 'vertical', minHeight: '40px', width: '100%', outline: 'none' });
-        prependInput.oninput = () => { sc.prepend = prependInput.value; saveCfg(CFG); };
+        prependInput.oninput = () => { CFG.prepend = prependInput.value; saveCfg(CFG); };
         prependRow.appendChild(prependLabel); prependRow.appendChild(prependInput);
         dlg.appendChild(prependRow);
 
-        const promptsSection = document.createElement('div');
-        promptsSection.style.padding = '6px 0';
-        const promptsLabel = document.createElement('div'); promptsLabel.textContent = 'saved prompts:'; Object.assign(promptsLabel.style, { fontSize: '11px', color: fg, marginBottom: '6px' });
-        promptsSection.appendChild(promptsLabel);
-
-        const promptsList = document.createElement('div');
-        promptsList.style.display = 'flex'; promptsList.style.flexDirection = 'column'; promptsList.style.gap = '6px';
-
-        function renderPrompts() {
-            promptsList.replaceChildren();
-            if (!sc.savedPrompts.length) {
-                const empty = document.createElement('div'); empty.textContent = 'no prompts saved'; Object.assign(empty.style, { fontSize: '12px', color: fg2, padding: '4px 0' });
-                promptsList.appendChild(empty);
-            } else {
-                sc.savedPrompts.forEach((p, idx) => {
-                    const enabled = p.enabled !== false;
-                    const row = document.createElement('div');
-                    Object.assign(row.style, {
-                        display: 'flex', alignItems: 'center', gap: '6px',
-                        background: bg3, padding: '4px 8px', borderRadius: '6px',
-                        opacity: enabled ? 1 : 0.5
-                    });
-                    const enToggle = document.createElement('input');
-                    enToggle.type = 'checkbox';
-                    enToggle.checked = enabled;
-                    Object.assign(enToggle.style, { flexShrink: 0, margin: 0, cursor: 'pointer' });
-                    enToggle.onchange = () => {
-                        sc.savedPrompts[idx].enabled = enToggle.checked;
-                        saveCfg(CFG);
-                        renderPrompts();
-                    };
-                    row.appendChild(enToggle);
-
-                    const titleSpan = document.createElement('span');
-                    titleSpan.textContent = p.title;
-                    Object.assign(titleSpan.style, { flex: '1', fontSize: '12px', color: fg, cursor: 'pointer' });
-                    titleSpan.onclick = () => {
-                        sc.selectedPrompt = p.title;
-                        saveCfg(CFG);
-                        renderPrompts();
-                    };
-
-                    const activeDot = document.createElement('span');
-                    activeDot.textContent = sc.selectedPrompt === p.title ? '●' : '○';
-                    Object.assign(activeDot.style, { fontSize: '14px', color: sc.selectedPrompt === p.title ? wht : fg2, marginRight: '4px' });
-
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = '✕';
-                    Object.assign(deleteBtn.style, { background: 'transparent', border: 'none', color: fg2, cursor: 'pointer', fontSize: '12px' });
-                    deleteBtn.onclick = () => {
-                        if (confirm(`delete prompt "${p.title}"?`)) {
-                            sc.savedPrompts = sc.savedPrompts.filter((_, i) => i !== idx);
-                            if (sc.selectedPrompt === p.title) sc.selectedPrompt = '';
-                            saveCfg(CFG);
-                            renderPrompts();
-                        }
-                    };
-
-                    row.appendChild(activeDot);
-                    row.appendChild(titleSpan);
-                    row.appendChild(deleteBtn);
-                    promptsList.appendChild(row);
-                });
-            }
-        }
-        renderPrompts();
-        promptsSection.appendChild(promptsList);
-        dlg.appendChild(promptsSection);
-
-        const addRow = document.createElement('div');
-        Object.assign(addRow.style, { display: 'flex', gap: '6px', padding: '4px 0', borderTop: `1px solid ${bd}` });
-        const titleInput = document.createElement('input');
-        titleInput.placeholder = 'title';
-        Object.assign(titleInput.style, { flex: '1', background: bg3, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: fg, padding: '4px 6px', fontSize: '12px', outline: 'none' });
-        const contentInput = document.createElement('textarea');
-        contentInput.placeholder = 'prompt content';
-        Object.assign(contentInput.style, { flex: '2', background: bg3, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: fg, padding: '4px 6px', fontSize: '12px', resize: 'vertical', minHeight: '40px', outline: 'none' });
-        const addBtn = document.createElement('button');
-        addBtn.textContent = '+';
-        Object.assign(addBtn.style, { background: bg3, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: fg, padding: '4px 12px', cursor: 'pointer', fontSize: '12px' });
-        addBtn.onclick = () => {
-            const title = titleInput.value.trim();
-            const content = contentInput.value.trim();
-            if (!title || !content) return alert('both title and content required');
-            if (sc.savedPrompts.find(p => p.title === title)) return alert('title already exists');
-            sc.savedPrompts.push({ title, content, enabled: true });
-            if (!sc.selectedPrompt) sc.selectedPrompt = title;
+        dlg.appendChild(rowEl('show inline usage bar', toggle(CFG.usageTracker, v => {
+            CFG.usageTracker = v;
             saveCfg(CFG);
-            titleInput.value = ''; contentInput.value = '';
-            renderPrompts();
-        };
-        addRow.appendChild(titleInput);
-        addRow.appendChild(contentInput);
-        addRow.appendChild(addBtn);
-        promptsSection.appendChild(addRow);
+            UT.refresh();
+        })));
 
-        const ioRow = document.createElement('div');
-        Object.assign(ioRow.style, { display: 'flex', gap: '6px', margin: '8px 0 4px' });
-        const ioBtn = (label, onclick) => {
-            const b = document.createElement('button'); b.textContent = label; b.onclick = onclick;
-            Object.assign(b.style, { flex: '1', background: bg3, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: fg, padding: '6px 12px', fontSize: '12px', cursor: 'pointer' });
-            return b;
-        };
-        const fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = '.json,application/json'; fileIn.hidden = true;
-        fileIn.onchange = async () => {
-            const f = fileIn.files[0]; fileIn.value = '';
-            if (!f) return;
-            try {
-                const before = sc.savedPrompts.length;
-                sc.savedPrompts = mergePrompts(sc.savedPrompts, JSON.parse(await f.text()));
-                saveCfg(CFG); renderPrompts();
-                say(`imported | ${sc.savedPrompts.length - before} new, ${sc.savedPrompts.length} saved`);
-            } catch (e) { say('import failed: ' + e.message); }
-        };
-        ioRow.append(
-            ioBtn('import prompts', () => fileIn.click()),
-            ioBtn('export prompts', () => anchorSave(JSON.stringify(sc.savedPrompts, null, 2), 'application/json', `lance-prompts-${P}.json`)),
-            fileIn);
-        dlg.appendChild(ioRow);
-        if (!INJECTS) [injRow, prependRow, promptsSection, ioRow].forEach(el => el.remove());
-
-        if (P === 'claude') {
-            dlg.appendChild(rowEl('show inline usage bar', toggle(sc.usageTracker ?? true, v => {
-                sc.usageTracker = v;
-                saveCfg(CFG);
-                UT.refresh();
-            })));
-        }
-
-        const footer = document.createElement('div');
-        footer.style.textAlign = 'center';
-        footer.style.marginTop = '16px';
-        footer.style.fontSize = '11px';
-        footer.style.color = fg2;
-
-        const gfLink = document.createElement('a');
-        gfLink.href = 'https://greasyfork.org/en/scripts/592831-lance';
-        gfLink.target = '_blank';
-        gfLink.textContent = 'greasyfork';
-        gfLink.style.color = fg2;
-        gfLink.style.textDecoration = 'none';
-        gfLink.addEventListener('mouseenter', () => gfLink.style.color = wht);
-        gfLink.addEventListener('mouseleave', () => gfLink.style.color = fg2);
-
-        footer.appendChild(gfLink);
         dlg.appendChild(hint);
-        dlg.appendChild(footer);
-
         document.body.appendChild(dlg);
     }
 
-    // ---- styles with edge mirroring ----
     GM_addStyle(`
-        .lance-drag-box {
-            position: fixed; z-index: 2147483646; display: flex; align-items: center; justify-content: center;
-            height: 42px; min-width: 42px; padding: 0 4px 0 0;
-            background: rgba(24,24,27,0.9); backdrop-filter: blur(14px);
-            color: rgba(255,255,255,0.85); border-radius: 100px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.07);
-            cursor: move; user-select: none; font-family: system-ui; font-size: 13px; font-weight: 600;
-            transition: transform 0.15s, box-shadow 0.15s; white-space: nowrap;
-            gap: 2px;
+        .lance-tab {
+            position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147482999; background: #1a1a1d; color: #ddd;
+            border: 1px solid #333; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; line-height: normal;
+            cursor: pointer; opacity: .7; writing-mode: vertical-rl; transform: translateX(calc(100% - 6px));
         }
-        .lance-drag-box:hover { transform: scale(1.04); color: #fff; box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.12); }
-
-        .lance-pill-inner {
-            display: flex; align-items: center; justify-content: center;
-            padding: 0 14px;
+        .lance-tab:hover, .lance-tab:focus-visible, .lance-tab.open { opacity: 1; transform: none; }
+        .lance-menu {
+            position: fixed; right: 26px; top: calc(50% - 30px); z-index: 2147483646; display: flex; flex-direction: column; gap: 1px;
+            min-width: 160px; padding: 4px; background: #1c1c20; border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.6);
         }
-        .lance-pill-icon { width: 14px; height: 14px; flex-shrink: 0; text-align: center; line-height: 14px; }
-        .lance-pill-text {
-            box-sizing: border-box; max-width: 0; padding-left: 0; padding-right: 0;
-            opacity: 0; overflow: hidden;
-            transition: max-width .22s cubic-bezier(.16,1,.3,1), padding-left .22s cubic-bezier(.16,1,.3,1), padding-right .22s cubic-bezier(.16,1,.3,1), opacity .15s;
-        }
-        .lance-drag-box.open .lance-pill-text { max-width: 140px; padding-left: 7px; padding-right: 0; opacity: 1; }
-
-        .lance-pin-circle {
-            display: none;
-            width: 26px; height: 26px; border-radius: 50%;
-            background: transparent; border: none; cursor: pointer;
-            color: rgba(255,255,255,0.4); transition: all 0.2s;
-            flex-shrink: 0; padding: 0; margin-right: 4px;
-            align-items: center; justify-content: center;
-        }
-        .lance-pin-circle:hover { color: #fff; background: rgba(255,255,255,0.1); }
-        .lance-pin-circle.pinned { color: #fff; background: rgba(255,255,255,0.15); }
-        .lance-drag-box.open .lance-pin-circle { display: flex; }
-
-        /* Edge mirror: when near right edge, pin goes left, text goes left of icon (only when open) */
-        .lance-drag-box-right-edge .lance-pill-inner { order: 2; }
-        .lance-drag-box-right-edge .lance-pin-circle { order: 1; margin-right: 0; margin-left: 4px; }
-        .lance-drag-box-right-edge .lance-pill-icon { order: 2; }
-        .lance-drag-box-right-edge .lance-pill-text { order: 1; } /* keep padding 0 when closed */
-
-        /* When open and on right edge, swap padding for text (right padding for spacing) */
-        .lance-drag-box-right-edge.open .lance-pill-text { padding-left: 0; padding-right: 7px; }
-
-        .lance-menu-panel {
-            position: absolute; width: max-content; min-width: 185px;
-            background: #1c1c20; border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 12px; padding: 4px; display: none; flex-direction: column; gap: 1px;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
-        }
-        .lance-drag-box.open > .lance-menu-panel { display: flex; }
-
-        .pos-bottom-right { bottom: calc(100% + 12px); right: 0; transform-origin: bottom right; animation: aiPopUp .2s cubic-bezier(.16,1,.3,1); }
-        .pos-bottom-left { bottom: calc(100% + 12px); left: 0; transform-origin: bottom left; animation: aiPopUp .2s cubic-bezier(.16,1,.3,1); }
-        .pos-top-right { top: calc(100% + 12px); right: 0; transform-origin: top right; animation: aiPopDown .2s cubic-bezier(.16,1,.3,1); }
-        .pos-top-left { top: calc(100% + 12px); left: 0; transform-origin: top left; animation: aiPopDown .2s cubic-bezier(.16,1,.3,1); }
-
-        @keyframes aiPopUp { 0% { opacity: 0; transform: scale(.94) translateY(6px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
-        @keyframes aiPopDown { 0% { opacity: 0; transform: scale(.94) translateY(-6px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
-
+        .lance-menu[hidden] { display: none; }
         .lance-menu-item {
-            display: flex; align-items: center; padding: 9px 12px; background: transparent; border: none;
-            border-radius: 8px; text-align: left; cursor: pointer; color: rgba(228,228,232,0.75);
-            font-size: 12px; font-weight: 500; transition: background .1s, color .1s; width: 100%;
-            white-space: nowrap; letter-spacing: 0.01em;
+            padding: 9px 12px; background: transparent; border: none; border-radius: 8px; text-align: left; cursor: pointer;
+            color: rgba(228,228,232,0.75); font: 500 12px system-ui; white-space: nowrap;
         }
-        .lance-menu-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
-        .lance-badge { margin-left: auto; font-size: 9px; font-weight: 700; letter-spacing: .04em; font-family: monospace; color: rgba(255,255,255,0.2); }
-
-        /* Submenu */
-        .lance-menu-parent { position: relative; }
-        .lance-menu-parent .lance-submenu {
-            display: none;
-            position: absolute;
-            top: 0;
-            background: #1c1c20;
-            border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 12px;
-            padding: 4px;
-            min-width: 140px;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
-            flex-direction: column;
-            gap: 1px;
-        }
-        .lance-menu-parent .lance-submenu { left: 100%; right: auto; }
-        .lance-menu-parent.lance-submenu-left .lance-submenu { left: auto; right: 100%; }
-        .lance-menu-parent.open > .lance-submenu { display: flex; }
+        .lance-menu-item:hover, .lance-menu-item:focus-visible { background: rgba(255,255,255,0.07); color: #fff; }
     `);
 
     GM_registerMenuCommand("settings", openDashboard);
 
     setTimeout(() => {
-        buildExportPill();
+        buildPill();
         UT.init();
-        refreshPills();
     }, 1000);
 })();

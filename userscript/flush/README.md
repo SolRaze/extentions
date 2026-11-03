@@ -16,7 +16,7 @@ cpu tamer | timer callbacks on animation frames | applies on reload
 seek buttons | , and . keys | 1-60s step
 miniplayer button | i key
 gestures | wheel on player edges | brightness left 30% | volume right 30% | 200%
-sponsorblock | auto skip per category | once per segment | no player buttons | seek bar markers optional, off by default
+sponsorblock | auto skip per category | once per segment | no player buttons
 
 cookies | private tab only | get cookies in settings | youtube.com cookies as Downloads/youtube-cookies.txt | `yt-dlp --cookies`
 
@@ -34,7 +34,7 @@ export | Downloads/flush-playlists.json | library + mark tags
 store | tampermonkey storage flush.library | flush.sent pairs mark has been sent
 
 settings
-flush pill top right on youtube, where the profile picture sits | bottom right above mark's pill elsewhere | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
+flush pill right edge | 6px sliver until hover | above mark's and hoard's | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
 update | checks greasyfork when the panel opens, label shows the new version | click opens tampermonkey's install page | reload after
 sections | player | sponsorblock skip | hidden | performance | yt-dlp in private tabs | all but hidden youtube only | applies live | cpu tamer on reload
 all on by default | flush.hide off keeps every group without its own setting off | sponsorblock: sponsor, self promotion, subscribe reminder | kept in tampermonkey storage

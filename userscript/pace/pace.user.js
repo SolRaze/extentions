@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.12
+// @version      1.13
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -202,7 +202,7 @@ function onepace() {
     const get = (k, d) => GM_getValue(k, d);
     const set = (k, v) => GM_setValue(k, v);
     const opt = { variant: get('variant', 'English Subtitles'), res: get('res', '1080p'), alt: get('alt', false), skip: get('skip', true), auto: get('auto', true), list: get('list', true),
-        upnext: get('upnext', true), skipbtn: get('skipbtn', true), wheel: get('wheel', true), resume: get('resume', true) };
+    };
     const watched = get('watched', {}); // episode key -> 1
     const pos = get('pos', {}); // episode key -> resume seconds, dropped once watched
     // Arc slug or episode key -> { from: opening start, intro: opening length, outro: seconds before end }.
@@ -240,7 +240,7 @@ function onepace() {
         header .side:hover { background: #1b2128; }
         header .gear { margin-right: 6px; }
         header .next { display: block; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-        header .next[hidden], .app.nonext .next { display: none; }
+        header .next[hidden] { display: none; }
         .total { margin-left: auto; padding: 0 8px; color: #6b7480; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .prog { position: absolute; left: 0; bottom: -1px; height: 2px; background: #fff; pointer-events: none; }
         .arc { position: sticky; top: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
@@ -293,7 +293,8 @@ function onepace() {
         .settings[hidden] { display: none; }
         .settings .row { display: flex; gap: 8px; }
         .settings .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
-        .pill { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646; }
+        .pill { position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147483646; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; writing-mode: vertical-rl; transform: translateX(calc(100% - 6px)); }
+        .pill:hover, .pill:focus-visible { transform: none; }
     `;
     root.append(style);
 
@@ -409,11 +410,7 @@ function onepace() {
         el('div', { className: 'opts' },
             check('alt', 'alternate cuts', true),
             check('skip', 'skip intro/outro'),
-            check('auto', 'autonext'),
-            check('resume', 'resume position'),
-            check('upnext', 'up next in header'),
-            check('skipbtn', 'skip intro button'),
-            check('wheel', 'wheel brightness, volume')),
+            check('auto', 'autonext')),
         el('div', { className: 'row' },
             button('mark intro start', () => mark('from')),
             button('mark intro end', () => mark('intro')),
@@ -431,7 +428,7 @@ function onepace() {
     side.title = 'episode list';
     side.className = 'side';
     gear.className = 'gear';
-    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') + (opt.upnext ? '' : ' nonext') },
+    const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') },
         el('header', {}, el('div', { className: 'brand' }, side, el('span', { className: 'logo', textContent: 'One Piece' })), arcname, total, next, gear, prog),
         list,
         el('main', {},
@@ -504,14 +501,14 @@ function onepace() {
         set('marks', marks);
         paint();
     }
-    const refresh = () => { app.classList.toggle('nonext', !opt.upnext); progress(); };
+    const refresh = progress;
 
     async function play(i, at = 0, go = true) {
         if (i < 0 || i >= eps.length) return;
         const ep = eps[i];
         const s = pickSource(ep.src, opt.variant, opt.res, opt.alt);
         if (!s) return;
-        if (i !== cur) at = (opt.resume && pos[ep.key]) || 0;
+        if (i !== cur) at = pos[ep.key] || 0;
         rows.get(eps[cur]?.key)?.classList.remove('cur');
         heads.get(eps[cur]?.arc)?.head.classList.remove('cur');
         heads.get(ep.arc).head.classList.add('cur');
@@ -580,7 +577,7 @@ function onepace() {
         ovTimer = setTimeout(() => { ov.hidden = true; }, 800);
     };
     video.addEventListener('wheel', (e) => {
-        if (e.ctrlKey || !opt.wheel) return;
+        if (e.ctrlKey) return;
         const r = video.getBoundingClientRect();
         const x = (e.clientX - r.left) / r.width;
         if (x > 0.3 && x < 0.7) return;
@@ -632,7 +629,7 @@ function onepace() {
     const progress = () => {
         fill.style.width = `${(video.currentTime / video.duration || 0) * 100}%`;
         time.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
-        skipi.hidden = !opt.skipbtn || skipTarget() == null;
+        skipi.hidden = skipTarget() == null;
     };
     for (const ev of ['timeupdate', 'durationchange', 'seeking', 'emptied']) video.addEventListener(ev, progress);
     video.addEventListener('loadedmetadata', drawTicks);

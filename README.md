@@ -1,7 +1,7 @@
 extentions
 
 userscript/ tampermonkey | greasemonkey scripts
-- lance/ chat exporter | usage tracker | prompt injection | greasyfork 592831
+- lance/ claude chat export | usage tracker | first-prompt text | greasyfork 592831
 - bridge/ open stl, 3mf, step in orcaslicer | greasyfork 592839
 - hoard/ instagram saved posts to disk by collection | offline viewer | greasyfork 598006
 - flush/ hidden page clutter on 14 sites, switch per element | youtube player | seek | gestures | cpu tamer | cookies for yt-dlp | playlists tagged in mark | greasyfork 598191

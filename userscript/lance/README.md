@@ -1,21 +1,16 @@
 lance
 
-chat exporter with injection | usage tracker | enter-as-newline
-supports claude | deepseek | brave/ask
+claude.ai chat export | usage tracker | enter-as-newline | first-prompt text
 
 features
-export markdown | json | csv | txt | html | file yyyymmdd_turns_title
-claude usage tracker | session, weekly, opus bars over the input
-first-prompt injection | prepend then selected prompt | claude and deepseek | mouse or keyboard send | once per chat
-saved prompts | add | select | enable | import and export as json, same title replaced
-enter inserts newline in the chat input | cmd or ctrl+enter sends | both switchable
-pill draggable | pin keeps it in place
+export markdown | json | file yyyymmdd_turns_title
+usage tracker | session, weekly, opus bars over the input
+first-prompt text | one text in settings | mouse or keyboard send | once per chat
+enter inserts newline in the chat input | cmd or ctrl+enter sends | one switch | off = claude's own keys
+lance tab right edge | 6px sliver until hover | click opens export and settings
 update | in settings | checks greasyfork, opens tampermonkey's install page | reload after
 
 gotchas
-deepseek export reads replies through their copy buttons | clipboard restored after | needs clipboard permission
-deepseek selectors are generated class names | a deploy renames them | export and injection there stop
-no injection on brave/ask | chats start from the search box
 trusted types | own policy lance | claude.ai enforces them
 
 selftest node selftest.js

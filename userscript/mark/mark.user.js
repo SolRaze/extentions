@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.10
+// @version      2.11
 // @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -454,9 +454,9 @@ input:focus, textarea:focus { outline: 1px solid #4b6bfb; }
     background: #222c; color: #fff; display: none; place-items: center; font-size: 12px; box-shadow: 0 1px 4px #0005; }
 .btn.on { display: grid; }
 .btn:hover { background: #4b6bfb; }
-.pill-open { position: fixed; right: 10px; bottom: 10px; z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333;
-    border-radius: 12px; padding: 3px 10px; font: 12px system-ui; opacity: .7; }
-.pill-open:hover { opacity: 1; }
+.pill-open { position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333; border-right: 0;
+    border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; opacity: .7; writing-mode: vertical-rl; transform: translateX(calc(100% - 6px)); }
+.pill-open:hover, .pill-open:focus-visible { opacity: 1; transform: none; }
 .pop, .lib { color: #e8e8ea; background: #1c1c20; }
 .pop { position: fixed; z-index: 2147483647; width: 380px; padding: 12px; display: grid; gap: 9px;
     border: 1px solid #ffffff1a; border-radius: 12px; box-shadow: 0 12px 40px #0008; }

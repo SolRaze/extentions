@@ -14,7 +14,7 @@ youtube | chips under clamped titles | the watch page title and channel header c
 off-site links tag as plain links | same-site links without a rule never
 
 tags page
-mark pill bottom right | alt+shift+t | or tampermonkey menu `mark` | full-tab overlay
+mark pill right edge | 6px sliver until hover | alt+shift+t | or tampermonkey menu `mark` | full-tab overlay
 tag cloud sized by use | click tags to filter | several tags = entries carrying all
 one tag picked | rename | renaming onto an existing tag merges | colour slider | effect | delete tag
 compact rows | type icon, title, chips | url and note on hover | edit | delete

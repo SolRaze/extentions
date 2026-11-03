@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.8
+// @version      1.9
 // @description  decluttered youtube, instagram, spotify, x, soundcloud, claude, reddit and more, a switch per hidden element | on youtube seek buttons and keys, miniplayer, gestures, sponsorblock, cpu tamer, playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -62,6 +62,28 @@ const SITES = {
         ["overlay", "buttons over the video", [".yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-leading.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next", ".yt-spec-button-shape-next--enable-backdrop-filter-experiment.yt-spec-button-shape-next--icon-only-default.yt-spec-button-shape-next--size-m.yt-spec-button-shape-next--overlay.yt-spec-button-shape-next--text.yt-spec-button-shape-next", ".ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextOverlay.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost"]],
         ["watch", "donations, shopping and carousels", [".ytd-watch-flexy.style-scope > .ytd-donation-unavailable-renderer.style-scope", "ytd-badge-supported-renderer.ytd-watch-metadata.style-scope > .ytBadgeSupportedRendererHost > .ytBadgeSupportedRendererBadgeShape.badge-shape > .ytMetadataBadgeRendererHost > .ytBadgeShapeTypography.ytBadgeShapeCommerce.ytBadgeShapeHost > .ytBadgeShapeText", ".ytVideoMetadataCarouselViewModelHost", "#teaser-carousel"]],
         ["ask", "ask (ai chat) button", [".you-chat-entrypoint-button.ytd-menu-renderer.style-scope.ytSpecButtonViewModelHost"]],
+        // youtube draws BADGE_MEMBERS_ONLY and BADGE_COMMERCE as ytBadgeShapeCommerce, so paid videos go with members ones.
+        // The Join and Membership rules match english text and count 0 in other languages.
+        ["members", "members only and paid content, join buttons", [
+            ":is(ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer, ytd-playlist-video-renderer, ytd-playlist-panel-video-renderer, ytd-backstage-post-thread-renderer, ytd-post-renderer, yt-lockup-view-model):has(.ytBadgeShapeCommerce, .ytBadgeShapeMembership, .badge-style-type-members-only)",
+            "#sponsor-button",
+            ".ytFlexibleActionsViewModelAction:has(button[aria-label^=\"Join\"])",
+            "yt-tab-shape[tab-title=\"Membership\"]",
+            "ytd-recognition-shelf-renderer",
+            "yt-sponsorships-channel-upsell-view-model",
+            "yt-sponsorships-scrollable-shelf",
+            "ytd-sponsor-comment-badge-renderer",
+        ]],
+        ["featured", "youtube promos and featured content", [
+            "ytd-statement-banner-renderer",
+            "yt-premium-spotlight-banner-renderer",
+            "ytd-premium-browse-footer-renderer",
+            "yt-mealbar-promo-renderer",
+            "ytd-brand-video-shelf-renderer",
+            "ytd-brand-video-singleton-renderer",
+            "ytd-channel-featured-content-renderer",
+            "yt-featured-content-item-view-model",
+        ]],
     ] },
     'instagram.com': { name: 'instagram', groups: [
         ["ig.nav", "sidebar nav entries", [".x1dlrdel.x1ddbhtg.x1fkh5qu.x11njtxf.x1n2onr6.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x2lah0s.xdt5ytf.x78zum5.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.x7a106z > ._a6hd.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl", ".xhuyl8g.xl5mz7h > span.x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x78zum5.x6s0dn4.x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .x159b3zp.x80pfx3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x15x8krk.xde0f50.x5a5i1n.x1obq294.x3nfvp2.x9f619", ".xhuyl8g.xl5mz7h > span.x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", "div:nth-of-type(5) > div > .x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", ".xc26acl.xh8yej3.x1iyjqo2 > div > .x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", ".x1n2onr6 > .x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", ".xc26acl.xh8yej3.x1iyjqo2 > div > div > div > .x1qrby5j.x7ja8zs.x1t2pt76.x1lytzrv.xedcshv.xarpa2k.x3igimt.x12ejxvf.xaigb6o.x1beo9mf.xv2umb2.x1jfb8zj.x1h9r5lt.x1h91t0o.x4k7w5x.x1vvkbs.x16tdsg8.x1hl2dhg.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.html-span > .x1n2onr6 > ._a6hd.x4gyw5p.x1a2a7pz.xggy1nq.x1hl2dhg.x16tdsg8.x1c1uobl.x18d9i69.xyri2b.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.xt0psk2.x1ypdohk.x9f619.x14e42zd.x1qhh985.x10w94by.x972fbf.xstzfhl.x1sy0etr.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl > .xh8yej3.x1g0dm76.xsag5q8.xpdmqnj.xz9dl7a.x1q0g3np.x6s0dn4.x15x8krk.xde0f50.x5a5i1n.x1obq294.x159b3zp.x80pfx3.x12dmmrz.x7nr27j.x6pnmvc.xo237n4.xjpr12u.xr9ek0c.x3nfvp2.x9f619", "._a6hd.xlxy82.x1q0q8m5.x16stqrj.x1xnnf8n.x106a9eq.xn3w4p2.x1c4vz4f.x1lku1pv.x1hl2dhg.xl56j7k.x1q0g3np.x78zum5.x6s0dn4.x1a2a7pz.xggy1nq.x16tdsg8.x18d9i69.xexx8yu.x1lziwak.xat24cr.x14z9mp.xdj266r.x3ct3a4.x1ypdohk.x9f619.x14e42zd.x10w94by.x972fbf.xstzfhl.x18oe1m7.x1ejq31n.xjbqb8w.x1i10hfl"]],
@@ -226,7 +248,7 @@ const editAction = (o) => o.op === 'add' ? { action: 'ACTION_ADD_VIDEO', addedVi
 
 // Settings, all in tampermonkey storage. Toggles default on.
 const DEFAULTS = { cputamer: true, seek: true, miniplayer: true, gesture: true, 'seek-step': 10, 'gesture-sensitivity': 5,
-    'sb.sponsor': true, 'sb.selfpromo': true, 'sb.interaction': true, 'sb.intro': false, 'sb.outro': false, 'sb.preview': false, 'sb.filler': false, 'sb.music_offtopic': false, 'sb-markers': false };
+    'sb.sponsor': true, 'sb.selfpromo': true, 'sb.interaction': true, 'sb.intro': false, 'sb.outro': false, 'sb.preview': false, 'sb.filler': false, 'sb.music_offtopic': false };
 // a hide group without its own setting follows flush.hide, the all-groups switch
 const cfg = (k) => GM_getValue('flush.' + k, k.startsWith('hide.') ? GM_getValue('flush.hide', true) : DEFAULTS[k]);
 const setCfg = (k, v) => GM_setValue('flush.' + k, v);
@@ -476,31 +498,10 @@ function showOverlay(txt, p = QS('#movie_player')) {
 }
 
 // SponsorBlock: skip-type segments for the current video, skipped silently. No seek bar
-// buttons; seek bar markers only with the sb-markers setting. The lookup sends only the first 4 hex chars of sha256(videoId).
+// buttons or markers. The lookup sends only the first 4 hex chars of sha256(videoId).
 const SB_API = 'https://sponsor.ajay.app/api/skipSegments/';
 let sb = { id: '', segments: [], done: new Set() };
 const videoId = () => new URLSearchParams(location.search).get('v') || location.pathname.match(/^\/shorts\/([\w-]{11})/)?.[1] || '';
-
-const SB_COLORS = { sponsor: '#00d400', selfpromo: '#ffff00', interaction: '#cc00ff', intro: '#00ffff', outro: '#0202ed', preview: '#008fd6', filler: '#7300ff', music_offtopic: '#ff9900' };
-
-// Enabled categories drawn over the progress bar. Runs on every DOM pass, so it rebuilds only when the key changes.
-function renderMarkers() {
-    const bar = QS('#movie_player .ytp-progress-bar');
-    const v = QS('#movie_player video');
-    let box = QS('.flush-sb-markers');
-    const segs = cfg('sb-markers') && bar && v?.duration > 0 && sb.id === videoId() ? sb.segments.filter(s => cfg('sb.' + s.category)) : [];
-    const key = segs.length ? `${sb.id}|${v.duration}|${segs.map(s => s.UUID).join()}` : '';
-    if ((box?.dataset.key || '') === key && (!box || box.parentNode === bar)) return;
-    box?.remove();
-    if (!key) return;
-    box = h('div', { className: 'flush-sb-markers' }, ...segs.map(s => {
-        const d = h('div');
-        d.style.cssText = `left: ${s.segment[0] / v.duration * 100}%; width: ${(s.segment[1] - s.segment[0]) / v.duration * 100}%; background: ${SB_COLORS[s.category]};`;
-        return d;
-    }));
-    box.dataset.key = key;
-    bar.append(box);
-}
 
 // Segment to skip at time t: enabled category, not skipped yet, not within its last 0.5s.
 function segmentAt(segments, t, enabled, done) {
@@ -520,7 +521,6 @@ async function loadSegments() {
         onload: (r) => {
             if (r.status !== 200 || sb.id !== id) return; // 404 = no segments for this prefix
             try { sb.segments = JSON.parse(r.responseText).find(x => x.videoID === id)?.segments || []; } catch { /* bad reply */ }
-            renderMarkers();
         },
     });
 }
@@ -568,13 +568,14 @@ summary label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .sel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px ui-monospace, monospace; opacity: .75; }
 `;
 
-// Same look as mark's .pill-open, in the masthead's top right where the profile picture sits.
+// Same look as mark's .pill-open: a tab on the right edge, a 6px sliver until hover, so it covers nothing.
+// One slot per script on the edge: flush -90px, mark, pace and lance -30px, hoard +30px from the middle.
 const PILL_CSS = `
 :host { all: initial; }
-button { position: fixed; right: 10px; top: 17px; z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333;
-    border-radius: 12px; padding: 3px 10px; font: 12px system-ui; line-height: normal; cursor: pointer; opacity: .7; box-sizing: border-box; }
-button:hover { opacity: 1; }
-button.low { top: auto; bottom: 40px; }
+button { position: fixed; right: 0; top: calc(50% - 90px); z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333; border-right: 0;
+    border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; line-height: normal; cursor: pointer; opacity: .7; box-sizing: border-box;
+    writing-mode: vertical-rl; transform: translateX(calc(100% - 6px)); }
+button:hover, button:focus-visible { opacity: 1; transform: none; }
 `;
 
 // Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.
@@ -840,8 +841,7 @@ function buildPanel() {
         toggle('miniplayer', 'miniplayer button (i)'),
         toggle('gesture', 'wheel gestures'), range('gesture-sensitivity', 'gesture step', 1, 20, '%'),
         h('b', {}, 'sponsorblock skip'),
-        ...SB_CATEGORIES.map(([c, label]) => toggle('sb.' + c, label)),
-        toggle('sb-markers', 'seek bar markers')] : []),
+        ...SB_CATEGORIES.map(([c, label]) => toggle('sb.' + c, label))] : []),
         h('b', {}, `hidden on ${SITES[SITE].name} | hover a rule to show what it hides`),
         ...hideGroups(toggle),
         ...(YT ? [h('b', {}, 'performance'),
@@ -894,7 +894,6 @@ function applyFeatures() {
     if (!YT) return;
     cfg('miniplayer') ? ensureMini() : QS('.custom-yt-mini-button')?.remove();
     cfg('seek') ? ensureSeek() : removeSeek();
-    renderMarkers();
 }
 
 function main() {
@@ -911,15 +910,13 @@ function main() {
     const pill = () => {
         // shadow root keeps the site's own button css off it, so it renders exactly like mark's pill
         const el = h('div', { id: 'flush-pill' });
-        el.attachShadow({ mode: 'closed' }).append(h('style', {}, PILL_CSS), h('button', { title: 'flush settings', className: YT ? '' : 'low', onclick: togglePanel }, 'flush'));
+        el.attachShadow({ mode: 'closed' }).append(h('style', {}, PILL_CSS), h('button', { title: 'flush settings', onclick: togglePanel }, 'flush'));
         document.body.append(el);
     };
     const ready = (fn) => document.body ? fn() : document.addEventListener('DOMContentLoaded', fn, { once: true });
     if (!YT) return ready(pill);
 
-    GM_addStyle(`.custom-yt-btn svg { pointer-events: none; }
-.flush-sb-markers { position: absolute; inset: 0; pointer-events: none; z-index: 40; }
-.flush-sb-markers > div { position: absolute; top: 0; height: 100%; opacity: 0.8; }`);
+    GM_addStyle('.custom-yt-btn svg { pointer-events: none; }');
 
     GM_registerMenuCommand('playlists', () => openLibrary());
 
