@@ -5,11 +5,11 @@ pixeldrain list player | side bars hidden | opening skip
 
 onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill on the page brings the player back, none in the player
-☰ and ⚙ | over the video's top corners, no bar | fade with idle while playing | not in fullscreen
+header | no text | ☰ far left hides the list | ⚙ far right opens settings
 list | arcs only, watched count right of each arc | one arc open at a time | playing arc opens at the top, white bar | ✓ right of a watched episode, click or right-click toggles, hover shows it on the rest | rows are buttons, tab reaches them
 player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it, tooltips name the episode | download far right
 status | spinner after 0.4 s of buffering | a file that fails shows a message and retry
-controls | own seek bar, play, time, mute, pip, fullscreen, svg icons | under the video, overlaid only in fullscreen, hide there after 2.5 s idle | click plays, double-click fullscreen
+controls | own seek bar, play, time, mute, pip, fullscreen | under the video, overlaid only in fullscreen, hide there after 2.5 s idle | click plays, double-click fullscreen
 seek bar | shaded skip zones | white ticks chapter starts | green ticks marked zone bounds | a click or drag into a zone plays it | focus it with tab, arrows move 5 s
 skip intro | button over the video when auto skip did not take it, zone with skip off or replayed | fades with idle
 +90s | same button when no intro is known | first 90 s only, gone once used
@@ -17,7 +17,7 @@ resume | each episode reopens where it stopped | dropped once watched
 info | episode number and title | description
 gestures | wheel over left 30% brightness | right 30% volume to 200% | readout over the video
 focus | a mouse click leaves no ring | keyboard focus shows a white outline
-settings | ⚙ | playback, marks, data groups | esc or click outside closes
+settings | ⚙ top right | variant, resolution, cuts, skip, autonext, marks | esc or click outside closes
 update | settings button | checks greasyfork meta | installs through tampermonkey | ⚙ shows • when newer
 variant | english subtitles, dub, dub with closed captions | alternate cuts toggle picks extended or g-8 cut where one exists
 resolution | 1080p, 720p, 480p | nearest carried one when missing

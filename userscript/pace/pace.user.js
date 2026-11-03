@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.17
+// @version      1.18
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -228,33 +228,38 @@ function onepace() {
     style.textContent = `
         :host { all: initial; }
         * { box-sizing: border-box; }
-        .app { position: fixed; inset: 0; z-index: 2147483646; --side: 300px; display: grid; grid-template-columns: var(--side) 1fr; grid-template-rows: minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 500 14px/1.45 'Avenir Next', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
+        .app { position: fixed; inset: 0; z-index: 2147483646; --side: 300px; display: grid; grid-template-columns: var(--side) 1fr; grid-template-rows: auto minmax(0, 1fr); background: #0b0d10; color: #d8dde3; font: 500 14px/1.45 'Avenir Next', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
         .app[hidden] { display: none; }
         .app.nolist { grid-template-columns: 1fr; }
         .app.nolist aside { display: none; }
         aside { position: relative; overflow-y: auto; border-right: 1px solid #1d2229; scrollbar-width: thin; scrollbar-color: #2a313a transparent; }
-        .tb { position: absolute; top: 8px; z-index: 3; width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: #000a; border-color: #fff6; color: #fff; transition: opacity 0.2s; }
-        .tb.side { left: 8px; }
-        .tb.gear { right: 8px; width: auto; min-width: 36px; }
-        .stage.idle .tb:not(:focus-visible), .stage.idle .skipi:not(:focus-visible) { opacity: 0; }
-        .stage:fullscreen .tb { display: none; }
-        svg { width: 18px; height: 18px; fill: currentColor; fill-rule: evenodd; display: block; flex: none; }
+        header { position: relative; grid-column: 1 / -1; display: flex; align-items: center; height: 44px; border-bottom: 1px solid #1d2229; background: #12161b; }
+        .brand { width: var(--side); align-self: stretch; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 6px; border-right: 1px solid #1d2229; }
+        .app.nolist .brand { width: auto; border-right: 0; }
+        header button { background: none; border: 0; padding: 4px 6px; color: #8a939e; }
+        header button:hover { color: #fff; }
+        header .side { font-size: 18px; line-height: 1; padding: 6px 8px; }
+        header .side:hover { background: #1b2128; }
+        header .gear { margin: 0 6px 0 auto; font-size: 18px; line-height: 1; }
+        .stage.idle .skipi:not(:focus-visible) { opacity: 0; }
         .arc { position: sticky; top: 0; z-index: 1; width: 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 12px; background: #12161b; border: 0; border-bottom: 1px solid #1d2229; border-radius: 0; text-align: left; white-space: normal; font-weight: 600; user-select: none; }
-        .arc small { color: #8a939e; font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+        .arc small { color: #6b7480; font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
         .arc:hover { background: #171c22; border-color: #1d2229; }
         .arc.open { color: #fff; }
         .arc.cur { color: #fff; background: #1b2128; box-shadow: inset 3px 0 #fff; }
-        .ep { display: flex; }
-        .ep .go { flex: 1; min-width: 0; display: flex; gap: 10px; padding: 6px 0 6px 12px; background: none; border: 0; border-radius: 0; text-align: left; white-space: normal; }
-        .ep .mk { flex: none; padding: 6px 8px; background: none; border: 0; border-radius: 0; color: #8a939e; opacity: 0; }
+        .ep { position: relative; display: flex; }
+        .ep .go { flex: 1; min-width: 0; display: flex; gap: 10px; padding: 6px 12px; background: none; border: 0; border-radius: 0; text-align: left; white-space: normal; }
+        .ep .mk { flex: none; padding: 6px 12px 6px 10px; background: inherit; border: 0; border-radius: 0; color: #8a939e; opacity: 0; }
+        .ep:not(.seen) .mk { position: absolute; right: 0; top: 0; }
         .ep:hover .mk, .ep .mk:focus-visible, .ep.seen .mk { opacity: 1; }
         .ep.seen .mk { color: #4caf50; }
+        .ep.seen .go { padding-right: 0; }
         @media (hover: none) { .ep .mk { opacity: 1; } }
         .ep:hover { background: #151a20; }
         .ep.cur { background: #1b2733; color: #fff; }
-        .ep .n { color: #8a939e; min-width: 22px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .ep .n { color: #6b7480; min-width: 22px; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .ep .t { flex: 1; min-width: 0; }
-        .ep.seen .t { color: #8a939e; }
+        .ep.seen .t { color: #6b7480; }
         .eps[hidden] { display: none; }
         main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
         .stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; background: #000; }
@@ -272,19 +277,18 @@ function onepace() {
         .tick.mark { background: #4caf50; }
         .crow { display: flex; gap: 8px; align-items: center; color: #fff; }
         .crow .time { margin-right: auto; font-variant-numeric: tabular-nums; }
-        .crow button, .skipi { background: #0009; border-color: #fff6; color: #fff; }
-        .crow button, .bar button, .bar .dl { display: inline-flex; align-items: center; gap: 4px; }
+        .crow button, .skipi { background: #0009; border-color: #fff3; color: #fff; }
         button:disabled { opacity: 0.4; cursor: default; }
         .skipi { position: absolute; right: 16px; bottom: 84px; padding: 8px 14px; transition: opacity 0.2s; }
         .skipi[hidden], .crow [hidden] { display: none; }
         :focus:not(:focus-visible) { outline: none; }
         :focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
-        .fail { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); display: grid; gap: 8px; justify-items: center; padding: 16px 20px; background: #12161b; border: 1px solid #5c6670; border-radius: 8px; color: #fff; }
+        .fail { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); display: grid; gap: 8px; justify-items: center; padding: 16px 20px; background: #12161b; border: 1px solid #2a313a; border-radius: 8px; color: #fff; }
         .fail[hidden], .spin[hidden] { display: none; }
         .spin { position: absolute; left: 50%; top: 40%; width: 40px; height: 40px; margin: -20px; border: 3px solid #fff3; border-top-color: #fff; border-radius: 50%; pointer-events: none; opacity: 0; animation: pace-show 0s 0.4s forwards, pace-spin 0.8s linear infinite; }
         @keyframes pace-show { to { opacity: 1; } }
         @keyframes pace-spin { to { transform: rotate(360deg); } }
-        @media (prefers-reduced-motion: reduce) { .spin { animation: pace-show 0s 0.4s forwards; } .tb, .skipi { transition: none; } }
+        @media (prefers-reduced-motion: reduce) { .spin { animation: pace-show 0s 0.4s forwards; } .skipi { transition: none; } }
         .ov { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); background: #000b; color: #fff; font-size: 2rem; padding: 0.4em 1.4em; border-radius: 1em; pointer-events: none; }
         .ov[hidden] { display: none; }
         .info { padding: 10px 16px; border-top: 1px solid #1d2229; }
@@ -293,25 +297,26 @@ function onepace() {
         .bar .dl { grid-column: 3; justify-self: end; text-decoration: none; }
         .title { font-size: 16px; font-weight: 600; color: #fff; }
         .desc { color: #8a939e; margin-top: 4px; max-width: 90ch; }
-        button, select, .dl { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #5c6670; border-radius: 6px; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
+        button, select, .dl { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
         button:hover, select:hover, .dl:hover { border-color: #3d4752; }
         label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
-        .note { color: #8a939e; }
-        .settings { position: absolute; right: 8px; top: 52px; z-index: 1; display: grid; gap: 8px; padding: 12px; background: #12161b; border: 1px solid #2a313a; border-radius: 8px; box-shadow: 0 8px 24px #0008; }
+        .note { color: #6b7480; }
+        .settings { position: absolute; right: 12px; top: 48px; z-index: 1; display: grid; gap: 8px; padding: 12px; background: #12161b; border: 1px solid #2a313a; border-radius: 8px; box-shadow: 0 8px 24px #0008; }
         .settings[hidden] { display: none; }
-        .settings .row { display: flex; flex-wrap: wrap; gap: 8px; }
-        .settings b { margin-top: 4px; font-size: 12px; font-weight: 600; color: #8a939e; }
+        .settings .row { display: flex; gap: 8px; }
         .settings .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
         @media (max-width: 800px) {
             .app, .app.nolist { grid-template-columns: minmax(0, 1fr); }
-            aside { position: absolute; left: 0; top: 0; bottom: 0; z-index: 2; width: min(300px, 85vw); padding-top: 52px; background: #0b0d10; }
+            aside { position: absolute; left: 0; top: 44px; bottom: 0; z-index: 2; width: min(300px, 85vw); background: #0b0d10; }
+            .brand { width: auto; border-right: 0; }
             video { min-height: 180px; }
-            .skipi { top: 8px; bottom: auto; right: 52px; }
+            .skipi { top: 8px; bottom: auto; right: 8px; }
             .info { max-height: 45%; overflow: auto; }
             .bar { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 8px; }
             .bar .mid { grid-column: 1; flex-wrap: wrap; justify-content: center; }
             .bar .dl { grid-column: 1; justify-self: center; }
-            .settings { left: 8px; max-height: calc(100% - 60px); overflow: auto; }
+            .settings { left: 8px; right: 8px; max-height: calc(100% - 56px); overflow: auto; }
+            .settings .row { flex-wrap: wrap; }
         }
         .pill { position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147483646; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; writing-mode: vertical-rl; }
     `;
@@ -323,27 +328,9 @@ function onepace() {
         return n;
     };
 
-    const ICONS = {
-        play: 'M8 5v14l11-7z', pause: 'M6 5h4v14H6zM14 5h4v14h-4z', prev: 'M6 6h2v12H6zM9.5 12l8.5 6V6z', next: 'M16 6h2v12h-2zM6 18l8.5-6L6 6z',
-        menu: 'M4 7h16v2H4zM4 11h16v2H4zM4 15h16v2H4z', vol: 'M4 9v6h4l5 4V5L8 9zM16 8.5a5 5 0 0 1 0 7z',
-        muted: 'M4 9v6h4l5 4V5L8 9zM16 9.4L17.4 8l2 2 2-2 1.4 1.4-2 2 2 2-1.4 1.4-2-2-2 2-1.4-1.4 2-2z', pip: 'M3 5h18v14H3zM5 7v10h14V7zM12 11h6v5h-6z',
-        full: 'M4 4h6v2H6v4H4zM14 4h6v6h-2V6h-4zM4 14h2v4h4v2H4zM18 14h2v6h-6v-2h4z', download: 'M11 4h2v9l3.5-3.5 1.4 1.4-5.9 5.9-5.9-5.9 1.4-1.4L11 13zM5 18h14v2H5z',
-        check: 'M9.5 16.2L5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z',
-        gear: 'M19.14 12.94a7.14 7.14 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7 7 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.14 7.14 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.38 1.05.7 1.63.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z',
-    };
-    const icon = (name) => {
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('viewBox', '0 0 24 24');
-        svg.setAttribute('aria-hidden', 'true');
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', ICONS[name]);
-        svg.append(path);
-        return svg;
-    };
-
     const video = el('video', { playsInline: true, crossOrigin: 'anonymous' });
     const ov = el('div', { className: 'ov', hidden: true });
-    const dl = el('a', { className: 'dl', title: 'download this file' }, icon('download'), 'download');
+    const dl = el('a', { className: 'dl', textContent: '↓ download', title: 'download this file' });
     const title = el('div', { className: 'title' });
     const desc = el('div', { className: 'desc' });
     const note = el('span', { className: 'note' });
@@ -361,10 +348,9 @@ function onepace() {
     // mousedown default would move focus onto the button and leave a ring after the click.
     const noFocus = (e) => e.preventDefault();
     const button = (text, fn) => el('button', { textContent: text, onclick: fn, onmousedown: noFocus });
-    // Icon, optional text beside it, name for the tooltip and screen readers.
-    const iconBtn = (name, label, fn, text = '') => {
-        const b = button('', fn);
-        b.append(icon(name), text);
+    // A glyph or short word with a full name for the tooltip and screen readers.
+    const named = (text, label, fn) => {
+        const b = button(text, fn);
         b.title = label;
         b.setAttribute('aria-label', label);
         return b;
@@ -377,24 +363,24 @@ function onepace() {
     track.setAttribute('aria-label', 'seek');
     track.setAttribute('aria-valuemin', 0);
     const time = el('span', { className: 'time' });
-    const playBtn = iconBtn('play', 'play or pause (k)', () => (video.paused ? video.play() : video.pause()));
-    const volBtn = iconBtn('vol', 'mute (m)', () => { video.muted = !video.muted; });
-    const pipBtn = iconBtn('pip', 'picture in picture', () => (document.pictureInPictureElement ? document.exitPictureInPicture() : video.requestPictureInPicture()).catch(() => {}));
+    const playBtn = named('▶', 'play or pause (k)', () => (video.paused ? video.play() : video.pause()));
+    const volBtn = named('vol 100%', 'mute (m)', () => { video.muted = !video.muted; });
+    const pipBtn = named('pip', 'picture in picture', () => (document.pictureInPictureElement ? document.exitPictureInPicture() : video.requestPictureInPicture()).catch(() => {}));
     pipBtn.hidden = !document.pictureInPictureEnabled;
-    const fullBtn = iconBtn('full', 'fullscreen (f)', () => full());
+    const fullBtn = named('full', 'fullscreen (f)', () => full());
     const skipi = button('skip intro', () => { const to = skipTarget(); done.add('intro'); if (to != null) video.currentTime = to; });
     skipi.className = 'skipi';
     skipi.hidden = true;
     const fail = el('div', { className: 'fail', hidden: true }, 'this file did not load', button('retry', () => { if (cur >= 0) play(cur, pos[eps[cur].key] || 0); }));
     const spin = el('div', { className: 'spin', hidden: true });
-    const side = iconBtn('menu', 'episode list', () => {
+    const side = named('☰', 'episode list', () => {
         const off = app.classList.toggle('nolist');
         if (!narrow.matches) { opt.list = !off; set('list', opt.list); }
     });
-    side.classList.add('tb', 'side');
-    const gear = iconBtn('gear', 'settings', () => { settings.hidden = !settings.hidden; });
-    gear.classList.add('tb', 'gear');
-    const stage = el('div', { className: 'stage' }, video, side, gear, ov, spin, fail, skipi,
+    side.className = 'side';
+    const gear = named('⚙', 'settings', () => { settings.hidden = !settings.hidden; });
+    gear.className = 'gear';
+    const stage = el('div', { className: 'stage' }, video, ov, spin, fail, skipi,
         el('div', { className: 'ctl' }, track, el('div', { className: 'crow' }, playBtn, time, volBtn, pipBtn, fullBtn)));
     const full = () => (document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen()).catch(() => {});
 
@@ -425,7 +411,7 @@ function onepace() {
             };
             const go = el('button', { className: 'go', onmousedown: noFocus, onclick: () => { if (narrow.matches) app.classList.add('nolist'); play(eps.indexOf(ep)); } },
                 el('span', { className: 'n', textContent: ep.num }), el('span', { className: 't', textContent: ep.title }));
-            const mk = iconBtn('check', `watched: ${ep.title}`, toggle);
+            const mk = named('✓', `watched: ${ep.title}`, toggle);
             mk.className = 'mk';
             const row = el('div', { className: 'ep' }, go, mk);
             row.oncontextmenu = (e) => { e.preventDefault(); toggle(); };
@@ -446,7 +432,7 @@ function onepace() {
         } catch (e) { status.textContent = 'update check failed: ' + e.message; }
     });
     updateBtn.title = 'check greasyfork for a new version';
-    latest().then((v) => { if (newer(v, GM_info.script.version)) { updateBtn.textContent = `update ${v}`; gear.append('•'); } }).catch(() => {});
+    latest().then((v) => { if (newer(v, GM_info.script.version)) { updateBtn.textContent = `update ${v}`; gear.textContent = '⚙ •'; } }).catch(() => {});
     const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
     const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
     file.onchange = async () => {
@@ -481,25 +467,24 @@ function onepace() {
         mark(null);
     });
     const settings = el('div', { className: 'settings', hidden: true },
-        el('b', {}, 'playback'),
         el('div', { className: 'row' }, select('variant', variants, 'subtitles or dub'), select('res', RES, 'resolution')),
         el('div', { className: 'opts' },
             check('alt', 'alternate cuts', true),
             check('skip', 'skip intro/outro'),
             check('auto', 'autonext')),
-        el('b', {}, 'marks'),
         el('div', { className: 'row' },
             button('mark intro start', () => mark('from')),
             button('mark intro end', () => mark('intro')),
             button('mark outro start', () => mark('outro')),
             clearBtn),
         note,
-        el('b', {}, 'data'),
-        el('div', { className: 'row' }, exportBtn, button('import', () => file.click()), file, updateBtn, button('show onepace page', () => show(false))),
+        el('div', { className: 'row' }, exportBtn, button('import', () => file.click()), file),
+        el('div', { className: 'row' }, updateBtn, button('show onepace page', () => show(false))),
         status);
-    const prevBtn = iconBtn('prev', 'previous episode', () => play(cur - 1), 'prev');
-    const nextBtn = iconBtn('next', 'next episode', () => play(cur + 1), 'next');
+    const prevBtn = named('⏮ prev', 'previous episode', () => play(cur - 1));
+    const nextBtn = named('next ⏭', 'next episode', () => play(cur + 1));
     const app = el('div', { className: 'app' + (opt.list && !narrow.matches ? '' : ' nolist') },
+        el('header', {}, el('div', { className: 'brand' }, side), gear),
         list,
         el('main', {},
             settings,
@@ -677,7 +662,7 @@ function onepace() {
     // A context created outside a user activation starts suspended and silences the element.
     video.addEventListener('play', () => audio?.resume());
 
-    const volText = () => { volBtn.replaceChildren(icon(video.muted ? 'muted' : 'vol'), video.muted ? '' : `${Math.round(video.volume * 100 * (gain ? gain.gain.value : 1))}%`); };
+    const volText = () => { volBtn.textContent = video.muted ? 'muted' : `vol ${Math.round(video.volume * 100 * (gain ? gain.gain.value : 1))}%`; };
     video.addEventListener('volumechange', volText);
     volText();
     for (const ev of ['waiting', 'seeking', 'loadstart']) video.addEventListener(ev, () => { spin.hidden = false; });
@@ -743,8 +728,8 @@ function onepace() {
     track.onpointerup = () => { track.onpointermove = null; };
     video.onclick = () => (video.paused ? video.play() : video.pause());
     video.ondblclick = full;
-    video.addEventListener('play', () => { playBtn.replaceChildren(icon('pause')); });
-    video.addEventListener('pause', () => { playBtn.replaceChildren(icon('play')); });
+    video.addEventListener('play', () => { playBtn.textContent = '❚❚'; });
+    video.addEventListener('pause', () => { playBtn.textContent = '▶'; });
     // Controls and cursor hide after 2.5 s without pointer movement while playing.
     let idle;
     const wake = () => {
