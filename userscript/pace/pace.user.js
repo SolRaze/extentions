@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.15
+// @version      1.16
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -233,15 +233,11 @@ function onepace() {
         header { position: relative; grid-column: 1 / -1; display: flex; align-items: center; height: 44px; border-bottom: 1px solid #1d2229; background: #12161b; }
         .brand { width: var(--side); align-self: stretch; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 6px; border-right: 1px solid #1d2229; }
         .app.nolist .brand { width: auto; border-right: 0; }
-        .logo { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 0.2px; line-height: 1; white-space: nowrap; }
         header button { background: none; border: 0; padding: 4px 6px; color: #8a939e; }
         header button:hover { color: #fff; }
         header .side { font-size: 18px; line-height: 1; padding: 6px 8px; }
         header .side:hover { background: #1b2128; }
-        header .gear { margin-right: 6px; }
-        header .next { display: block; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-        header .next[hidden] { display: none; }
-        .total { margin-left: auto; padding: 0 8px; color: #6b7480; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        header .gear { margin: 0 6px 0 auto; font-size: 18px; line-height: 1; }
         .arc { position: sticky; top: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 12px; background: #12161b; border-bottom: 1px solid #1d2229; font-weight: 600; cursor: pointer; user-select: none; }
         .arc small { color: #6b7480; font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
         .arc:hover { background: #171c22; }
@@ -281,7 +277,6 @@ function onepace() {
         .bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 8px; user-select: none; }
         .bar .mid { grid-column: 2; display: flex; gap: 8px; }
         .bar .dl { grid-column: 3; justify-self: end; text-decoration: none; }
-        .arcname { flex: none; margin-left: 14px; color: #fff; font-weight: 600; white-space: nowrap; }
         .title { font-size: 16px; font-weight: 600; color: #fff; }
         .desc { color: #8a939e; margin-top: 4px; max-width: 90ch; }
         button, select, .dl { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
@@ -304,7 +299,6 @@ function onepace() {
 
     const video = el('video', { playsInline: true, crossOrigin: 'anonymous' });
     const ov = el('div', { className: 'ov', hidden: true });
-    const arcname = el('span', { className: 'arcname' });
     const dl = el('a', { className: 'dl', textContent: '↓ download', title: 'download this file' });
     const title = el('div', { className: 'title' });
     const desc = el('div', { className: 'desc' });
@@ -381,7 +375,7 @@ function onepace() {
         } catch (e) { status.textContent = 'update check failed: ' + e.message; }
     });
     updateBtn.title = 'check greasyfork for a new version';
-    latest().then((v) => { if (newer(v, GM_info.script.version)) { updateBtn.textContent = `update ${v}`; gear.textContent = 'pace •'; } }).catch(() => {});
+    latest().then((v) => { if (newer(v, GM_info.script.version)) { updateBtn.textContent = `update ${v}`; gear.textContent = '⚙ •'; } }).catch(() => {});
     const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
     const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
     file.onchange = async () => {
@@ -401,7 +395,7 @@ function onepace() {
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
-    const gear = button('pace', () => { settings.hidden = !settings.hidden; });
+    const gear = button('⚙', () => { settings.hidden = !settings.hidden; });
     const seek = (d) => { video.currentTime = Math.min(Math.max(video.currentTime + d, 0), video.duration || 0); };
     const settings = el('div', { className: 'settings', hidden: true },
         el('div', { className: 'row' }, select('variant', variants), select('res', RES)),
@@ -418,15 +412,13 @@ function onepace() {
         el('div', { className: 'row' }, exportBtn, button('import', () => file.click()), file),
         el('div', { className: 'row' }, updateBtn, button('show onepace page', () => show(false))),
         status);
-    const next = button('', () => play(cur + 1));
-    next.className = 'next';
-    const total = el('span', { className: 'total' });
     const side = button('☰', () => { opt.list = !opt.list; set('list', opt.list); app.classList.toggle('nolist', !opt.list); });
     side.title = 'episode list';
     side.className = 'side';
     gear.className = 'gear';
+    gear.title = 'settings';
     const app = el('div', { className: 'app' + (opt.list ? '' : ' nolist') },
-        el('header', {}, el('div', { className: 'brand' }, side, el('span', { className: 'logo', textContent: 'One Piece' })), arcname, total, next, gear),
+        el('header', {}, el('div', { className: 'brand' }, side), gear),
         list,
         el('main', {},
             settings,
@@ -469,8 +461,6 @@ function onepace() {
     const paint = () => {
         for (const ep of eps) rows.get(ep.key).classList.toggle('seen', !!watched[ep.key]);
         for (const h of heads.values()) h.count.textContent = `${h.arc.eps.filter((e) => watched[e.key]).length}/${h.arc.eps.length}`;
-        const seen = eps.filter((e) => watched[e.key]).length;
-        total.textContent = `${seen}/${eps.length} watched`;
         const m = markOf();
         drawTicks();
         note.textContent = [ranges.length && `chapters: ${ranges.map((r) => r.title).join(', ')}`,
@@ -516,13 +506,8 @@ function onepace() {
         const h = heads.get(ep.arc);
         list.scrollTop = h.box.offsetTop - h.head.offsetHeight;
         row.scrollIntoView({ block: 'nearest' });
-        const arc = arcs.find((a) => a.slug === ep.arc);
-        arcname.textContent = arc.title;
         title.textContent = `${ep.num} · ${ep.title}`;
         dl.href = `https://pixeldrain.net/api/file/${s.id}?download`;
-        const up = eps[i + 1];
-        next.hidden = !up;
-        if (up) next.textContent = `next: ${up.arc === ep.arc ? '' : arcs.find((a) => a.slug === up.arc).title + ' '}${up.num} · ${up.title}`;
         desc.textContent = `${ep.desc}  [${s.label} · ${s.res}]`;
         ranges = [];
         chapters = [];
