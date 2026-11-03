@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.13
+// @version      1.14
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -293,8 +293,7 @@ function onepace() {
         .settings[hidden] { display: none; }
         .settings .row { display: flex; gap: 8px; }
         .settings .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
-        .pill { position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147483646; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; writing-mode: vertical-rl; transform: translateX(calc(100% - 6px)); }
-        .pill:hover, .pill:focus-visible { transform: none; }
+        .pill { position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147483646; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; writing-mode: vertical-rl; }
     `;
     root.append(style);
 

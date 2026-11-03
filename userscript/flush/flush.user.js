@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.9
-// @description  decluttered youtube, instagram, spotify, x, soundcloud, claude, reddit and more, a switch per hidden element | on youtube seek buttons and keys, miniplayer, gestures, sponsorblock, cpu tamer, playlists tagged in mark
+// @version      1.10
+// @description  decluttered youtube, instagram, spotify, x, soundcloud, claude, reddit and more, a switch per hidden element | youtube members only, paid and promo content hidden | on youtube seek buttons and keys, miniplayer, gestures, sponsorblock, cpu tamer, playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -568,14 +568,14 @@ summary label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .sel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px ui-monospace, monospace; opacity: .75; }
 `;
 
-// Same look as mark's .pill-open: a tab on the right edge, a 6px sliver until hover, so it covers nothing.
+// Same look as mark's .pill-open: a narrow tab on the right edge.
 // One slot per script on the edge: flush -90px, mark, pace and lance -30px, hoard +30px from the middle.
 const PILL_CSS = `
 :host { all: initial; }
-button { position: fixed; right: 0; top: calc(50% - 90px); z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333; border-right: 0;
-    border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; line-height: normal; cursor: pointer; opacity: .7; box-sizing: border-box;
-    writing-mode: vertical-rl; transform: translateX(calc(100% - 6px)); }
-button:hover, button:focus-visible { opacity: 1; transform: none; }
+button { position: fixed; right: 0; top: calc(50% - 90px); z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #555; border-right: 0;
+    border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; line-height: normal; cursor: pointer; opacity: .85; box-sizing: border-box;
+    writing-mode: vertical-rl; }
+button:hover, button:focus-visible { opacity: 1; }
 `;
 
 // Latest version from greasyfork's meta file; installing goes through tampermonkey's own page.

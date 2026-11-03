@@ -1,6 +1,6 @@
 mark
 
-tag users, posts, videos, communities and links | colours | notes | per-tag hide, dim or star | tags page
+tag users, posts, videos, communities and links | colours | notes | per-tag hide, dim or star | tags page | shared tags for flush and hoard
 x | reddit | github | youtube | instagram | hacker news | soundcloud | pinterest | civitai
 
 usage
@@ -14,8 +14,8 @@ youtube | chips under clamped titles | the watch page title and channel header c
 off-site links tag as plain links | same-site links without a rule never
 
 tags page
-mark pill right edge | 6px sliver until hover | alt+shift+t | or tampermonkey menu `mark` | full-tab overlay
-tag cloud sized by use | click tags to filter | several tags = entries carrying all
+mark pill right edge | alt+shift+t | or tampermonkey menu `mark` | full-tab overlay
+tag cloud sized by use | search narrows it | click tags to filter | several tags = entries carrying all
 one tag picked | rename | renaming onto an existing tag merges | colour slider | effect | delete tag
 compact rows | type icon, title, chips | url and note on hover | edit | delete
 bulk | row checkboxes | shift-click extends | select all shown | add tag | remove tag | delete

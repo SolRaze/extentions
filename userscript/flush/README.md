@@ -7,7 +7,7 @@ hidden
 uBlock filters as css, per site | SITES in flush.user.js | groups named by what they hide | all on by default
 panel lists the site's groups | switch per group | ▸ opens its rules | switch per rule | count of elements it matches here, 0 = stale
 hover a rule | its elements show with a magenta outline instead of hidden | leave restores
-youtube | logo, menu, create and bell | profile picture | sidebar extras | buttons over the video | donations, shopping, carousels | ask button
+youtube | logo, menu, create and bell | profile picture | sidebar extras | buttons over the video | donations, shopping, carousels | ask button | members only and paid content, join buttons | youtube promos and featured content
 instagram | sidebar nav | story rings | profile and saved tabs | other panels, banners, buttons
 store | flush.hide.<group> per group | flush.ruleoff selectors switched off
 
@@ -34,12 +34,13 @@ export | Downloads/flush-playlists.json | library + mark tags
 store | tampermonkey storage flush.library | flush.sent pairs mark has been sent
 
 settings
-flush pill right edge | 6px sliver until hover | above mark's and hoard's | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
+flush pill right edge | above mark's and hoard's | or tampermonkey menu settings, the way in from fullscreen | esc, ✕ or click outside closes
 update | checks greasyfork when the panel opens, label shows the new version | click opens tampermonkey's install page | reload after
 sections | player | sponsorblock skip | hidden | performance | yt-dlp in private tabs | all but hidden youtube only | applies live | cpu tamer on reload
 all on by default | flush.hide off keeps every group without its own setting off | sponsorblock: sponsor, self promotion, subscribe reminder | kept in tampermonkey storage
 
 gotchas
+members rule also hides paid videos | same badge | join and membership rules english only
 hide selectors are each site's generated class names | a deploy renames them | stale ones just stop hiding, count 0 in the panel
 network filters as css | img[src*=] and iframe[src*=] | the request still goes out, only the element hides
 remove the same filters from ublock | ublock hiding them keeps the switches here from showing anything

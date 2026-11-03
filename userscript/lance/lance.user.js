@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         lance
 // @namespace    https://github.com/SolRaze/extentions/blob/main/userscript/lance
-// @version      1.4
+// @version      1.5
 // @description  claude.ai chat export, usage tracker, enter-as-newline, first-prompt text
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -217,7 +217,7 @@ else (function () {
         else anchorSave(mdDoc(title, pairs), "text/markdown", name);
     }
 
-    // Tab on the right edge, a 6px sliver until hover, same slot as mark and pace, whose sites lance never runs on.
+    // Narrow tab on the right edge, same slot as mark and pace, whose sites lance never runs on.
     function buildPill() {
         const tab = document.createElement('button');
         tab.className = 'lance-tab'; tab.textContent = 'lance';
@@ -505,10 +505,10 @@ else (function () {
     GM_addStyle(`
         .lance-tab {
             position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147482999; background: #1a1a1d; color: #ddd;
-            border: 1px solid #333; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; line-height: normal;
-            cursor: pointer; opacity: .7; writing-mode: vertical-rl; transform: translateX(calc(100% - 6px));
+            border: 1px solid #555; border-right: 0; border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; line-height: normal;
+            cursor: pointer; opacity: .85; writing-mode: vertical-rl;
         }
-        .lance-tab:hover, .lance-tab:focus-visible, .lance-tab.open { opacity: 1; transform: none; }
+        .lance-tab:hover, .lance-tab:focus-visible, .lance-tab.open { opacity: 1; }
         .lance-menu {
             position: fixed; right: 26px; top: calc(50% - 30px); z-index: 2147483646; display: flex; flex-direction: column; gap: 1px;
             min-width: 160px; padding: 4px; background: #1c1c20; border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.6);

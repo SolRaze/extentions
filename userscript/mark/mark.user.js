@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         mark
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/mark
-// @version      2.11
-// @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page
+// @version      2.12
+// @description  tag users, posts, videos and links across sites | colours, notes, per-tag hide, dim or star | tags page | shared tags for flush and hoard
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -454,9 +454,9 @@ input:focus, textarea:focus { outline: 1px solid #4b6bfb; }
     background: #222c; color: #fff; display: none; place-items: center; font-size: 12px; box-shadow: 0 1px 4px #0005; }
 .btn.on { display: grid; }
 .btn:hover { background: #4b6bfb; }
-.pill-open { position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #333; border-right: 0;
-    border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; opacity: .7; writing-mode: vertical-rl; transform: translateX(calc(100% - 6px)); }
-.pill-open:hover, .pill-open:focus-visible { opacity: 1; transform: none; }
+.pill-open { position: fixed; right: 0; top: calc(50% - 30px); z-index: 2147482999; background: #1a1a1d; color: #ddd; border: 1px solid #555; border-right: 0;
+    border-radius: 8px 0 0 8px; padding: 8px 3px; font: 12px system-ui; opacity: .85; writing-mode: vertical-rl; }
+.pill-open:hover, .pill-open:focus-visible { opacity: 1; }
 .pop, .lib { color: #e8e8ea; background: #1c1c20; }
 .pop { position: fixed; z-index: 2147483647; width: 380px; padding: 12px; display: grid; gap: 9px;
     border: 1px solid #ffffff1a; border-radius: 12px; box-shadow: 0 12px 40px #0008; }
@@ -582,7 +582,7 @@ function openLib() {
     if (lib) return closeLib();
     const picked = new Set(), checked = new Set();
     let lastChecked = null, msg = '';
-    const search = h('input', { className: 'search', placeholder: 'search titles, urls, notes', oninput: () => draw(), onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Escape') closeLib(); } });
+    const search = h('input', { className: 'search', placeholder: 'search tags, titles, urls, notes', oninput: () => draw(), onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Escape') closeLib(); } });
     const cloud = h('div', { className: 'cloud' }), tagbar = h('div', { className: 'tagbar' }), list = h('div', { className: 'list' }), foot = h('div', { className: 'foot' });
     const bulkIn = h('input', { placeholder: 'tag', onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') bulk(true); } });
     const file = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none', onchange: async () => {
@@ -597,8 +597,9 @@ function openLib() {
         act(() => retag(checked, t, add))();
         bulkIn.value = '';
     }
+    const searchWords = () => search.value.toLowerCase().split(/\s+/).filter(Boolean);
     const rows = () => {
-        const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+        const words = searchWords();
         return Object.entries(store.data)
             .filter(([k, v]) => [...picked].every(t => v.tags.includes(t))
                 && words.every(w => (k + ' ' + (v.meta?.title || '') + ' ' + (v.meta?.note || '') + ' ' + v.tags.join(' ')).toLowerCase().includes(w)))
@@ -622,8 +623,9 @@ function openLib() {
             h('button', { className: 'ib', onclick: act(() => { deleteTag(t); picked.clear(); }) }, 'delete tag'));
     }
     function drawCloud() {
-        const counts = tagCounts(), max = counts[0]?.[1] || 1;
-        fill(cloud, ...counts.map(([t, n]) => h('button', { className: `pill${picked.has(t) ? ' sel' : ''}`, style: `--h:${hueOf(t)};font-size:${pillSize(n, max)}`,
+        const counts = tagCounts(), max = counts[0]?.[1] || 1, words = searchWords();
+        const shownTags = counts.filter(([t]) => picked.has(t) || !words.length || words.some(w => t.toLowerCase().includes(w)));
+        fill(cloud, ...shownTags.map(([t, n]) => h('button', { className: `pill${picked.has(t) ? ' sel' : ''}`, style: `--h:${hueOf(t)};font-size:${pillSize(n, max)}`,
             onclick: () => { picked.has(t) ? picked.delete(t) : picked.add(t); draw(); } }, FX_ICON[fxOf(t)] ? FX_ICON[fxOf(t)] + ' ' : '', t, h('small', {}, n))),
             counts.length ? null : h('span', { className: 'hint' }, 'nothing tagged yet | hover a link and press t'));
     }
