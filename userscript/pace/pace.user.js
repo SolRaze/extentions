@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pace
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/pace
-// @version      1.19
+// @version      1.20
 // @description  one pace player: every arc and episode in one list on onepace.net, intro and outro skip, autonext, watched marks; a cleaner pixeldrain list player
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -264,23 +264,40 @@ function onepace() {
         .ep .t { flex: 1; min-width: 0; }
         .ep.seen .t { color: #6b7480; }
         .eps[hidden] { display: none; }
-        main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-        .stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; background: #000; }
-        video { flex: 1; min-height: 0; width: 100%; display: block; cursor: pointer; }
+        main { min-width: 0; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2a313a transparent; }
+        .stage { position: relative; container-type: inline-size; display: flex; flex-direction: column; background: #000; }
+        /* 16:9 at full width, capped so the picture and the 66 px control row fit under the 44 px header. */
+        video { flex: none; width: 100%; height: min(56.25cqw, calc(100dvh - 110px)); display: block; cursor: pointer; }
+        .stage:fullscreen video { flex: 1; height: auto; min-height: 0; }
         .stage.idle, .stage.idle video { cursor: none; }
         /* Controls sit under the video, never over it: an overlay at a fractional bottom edge lets a pixel row of video show beneath it. */
-        .ctl { padding: 10px 12px; background: #000; user-select: none; }
+        .ctl { padding: 10px 16px; background: #0b0d10; user-select: none; }
         .stage:fullscreen .ctl { position: absolute; left: 0; right: 0; bottom: 0; padding-top: 28px; background: linear-gradient(transparent, #000d 60%, #000); transition: opacity 0.2s; }
         .stage:fullscreen.idle .ctl { opacity: 0; }
         .track { position: relative; height: 6px; margin-bottom: 10px; background: #fff3; border-radius: 3px; cursor: pointer; outline-offset: 4px; }
+        .buf { position: absolute; left: 0; top: 0; bottom: 0; background: #fff4; border-radius: 3px; pointer-events: none; }
+        .thumb { position: absolute; right: -6px; top: -3px; width: 12px; height: 12px; background: #fff; border-radius: 50%; opacity: 0; }
+        .track:hover .thumb, .track:focus-visible .thumb { opacity: 1; }
+        .tip { position: absolute; bottom: 14px; transform: translateX(-50%); display: none; padding: 2px 6px; background: #12161b; border: 1px solid #2a313a; border-radius: 4px; color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+        .track:hover .tip { display: block; }
         .track::before { content: ''; position: absolute; inset: -11px 0; }
         .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; border-radius: 3px; pointer-events: none; }
         .zone { position: absolute; top: 0; bottom: 0; background: #fff5; pointer-events: none; }
         .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px #000a; pointer-events: none; }
         .tick.mark { background: #4caf50; }
-        .crow { display: flex; gap: 8px; align-items: center; color: #fff; }
-        .crow .time { margin-right: auto; font-variant-numeric: tabular-nums; }
-        .crow button, .skipi { background: #0009; border-color: #fff3; color: #fff; }
+        .crow { display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); gap: 8px; align-items: center; color: #fff; }
+        .crow .mid, .crow .right { display: flex; gap: 8px; align-items: center; }
+        .crow .right { justify-content: flex-end; }
+        .vols { width: 72px; margin: 0; accent-color: #fff; cursor: pointer; }
+        .dl { text-decoration: none; }
+        @container (max-width: 760px) {
+            .crow { grid-template-columns: auto minmax(0, 1fr); }
+            .crow .right { flex-wrap: wrap; }
+            .crow .mid { grid-column: 1 / -1; grid-row: 2; justify-content: center; flex-wrap: wrap; }
+            .vols { display: none; }
+        }
+        .crow .time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .stage:fullscreen .crow button, .stage:fullscreen .dl, .skipi { background: #0009; border-color: #fff3; color: #fff; }
         button:disabled { opacity: 0.4; cursor: default; }
         .skipi { position: absolute; right: 16px; bottom: 84px; padding: 8px 14px; transition: opacity 0.2s; }
         .skipi[hidden], .crow [hidden] { display: none; }
@@ -294,10 +311,7 @@ function onepace() {
         @media (prefers-reduced-motion: reduce) { .spin { animation: pace-show 0s 0.4s forwards; } .skipi { transition: none; } }
         .ov { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); background: #000b; color: #fff; font-size: 2rem; padding: 0.4em 1.4em; border-radius: 1em; pointer-events: none; }
         .ov[hidden] { display: none; }
-        .info { padding: 10px 16px; border-top: 1px solid #1d2229; }
-        .bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 8px; user-select: none; }
-        .bar .mid { grid-column: 2; display: flex; gap: 8px; }
-        .bar .dl { grid-column: 3; justify-self: end; text-decoration: none; }
+        .info { padding: 10px 16px; }
         .title { font-size: 16px; font-weight: 600; color: #fff; }
         .desc { color: #8a939e; margin-top: 4px; max-width: 90ch; }
         button, select, .dl { font: inherit; color: inherit; background: #1a1f26; border: 1px solid #2a313a; border-radius: 6px; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
@@ -312,12 +326,7 @@ function onepace() {
             .app, .app.nolist { grid-template-columns: minmax(0, 1fr); }
             aside { position: absolute; left: 0; top: 44px; bottom: 0; z-index: 2; width: min(300px, 85vw); background: #0b0d10; }
             .brand { width: auto; border-right: 0; }
-            video { min-height: 180px; }
             .skipi { top: 8px; bottom: auto; right: 8px; }
-            .info { max-height: 45%; overflow: auto; }
-            .bar { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 8px; }
-            .bar .mid { grid-column: 1; flex-wrap: wrap; justify-content: center; }
-            .bar .dl { grid-column: 1; justify-self: center; }
             .settings { left: 8px; right: 8px; max-height: calc(100% - 56px); overflow: auto; }
             .settings .row { flex-wrap: wrap; }
         }
@@ -359,9 +368,11 @@ function onepace() {
         return b;
     };
 
-    const fill = el('div', { className: 'fill' });
+    const buf = el('div', { className: 'buf' });
+    const fill = el('div', { className: 'fill' }, el('div', { className: 'thumb' }));
+    const tip = el('div', { className: 'tip' });
     const ticks = el('div');
-    const track = el('div', { className: 'track', tabIndex: 0 }, fill, ticks);
+    const track = el('div', { className: 'track', tabIndex: 0 }, buf, fill, ticks, tip);
     track.setAttribute('role', 'slider');
     track.setAttribute('aria-label', 'seek');
     track.setAttribute('aria-valuemin', 0);
@@ -370,10 +381,15 @@ function onepace() {
     const volBtn = named('vol 100%', 'mute (m)', () => { video.muted = !video.muted; });
     const pipBtn = named('pip', 'picture in picture', () => (document.pictureInPictureElement ? document.exitPictureInPicture() : video.requestPictureInPicture()).catch(() => {}));
     pipBtn.hidden = !document.pictureInPictureEnabled;
+    const volS = el('input', { type: 'range', className: 'vols', min: 0, max: 200, title: 'volume', oninput: () => setVol(+volS.value) });
+    volS.setAttribute('aria-label', 'volume');
     const fullBtn = named('full', 'fullscreen (f)', () => full());
     const skipi = button('skip intro', () => { const to = skipTarget(); done.add('intro'); if (to != null) video.currentTime = to; });
     skipi.className = 'skipi';
     skipi.hidden = true;
+    const prevBtn = named('⏮ prev', 'previous episode', () => play(cur - 1));
+    const nextBtn = named('next ⏭', 'next episode', () => play(cur + 1));
+    const seek = (d) => { video.currentTime = Math.min(Math.max(video.currentTime + d, 0), video.duration || 0); };
     const fail = el('div', { className: 'fail', hidden: true }, 'this file did not load', button('retry', () => { if (cur >= 0) play(cur, pos[eps[cur].key] || 0); }));
     const spin = el('div', { className: 'spin', hidden: true });
     const side = named('☰', 'episode list', () => {
@@ -384,7 +400,9 @@ function onepace() {
     const gear = named('pace', 'settings', () => { settings.hidden = !settings.hidden; });
     gear.className = 'gear';
     const stage = el('div', { className: 'stage' }, video, ov, spin, fail, skipi,
-        el('div', { className: 'ctl' }, track, el('div', { className: 'crow' }, playBtn, time, volBtn, pipBtn, fullBtn)));
+        el('div', { className: 'ctl' }, track, el('div', { className: 'crow' }, time,
+            el('div', { className: 'mid' }, prevBtn, button('−10s', () => seek(-10)), playBtn, button('+10s', () => seek(10)), nextBtn),
+            el('div', { className: 'right' }, volS, volBtn, pipBtn, fullBtn, dl))));
     const full = () => (document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen()).catch(() => {});
 
     const narrow = matchMedia('(max-width: 800px)');
@@ -455,7 +473,6 @@ function onepace() {
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
-    const seek = (d) => { video.currentTime = Math.min(Math.max(video.currentTime + d, 0), video.duration || 0); };
     // Clearing takes a second click within 3 s.
     let armed = 0;
     const clearBtn = button('clear marks', () => {
@@ -487,8 +504,6 @@ function onepace() {
     const next = button('', () => play(cur + 1));
     next.className = 'next';
     const total = el('span', { className: 'total' });
-    const prevBtn = named('⏮ prev', 'previous episode', () => play(cur - 1));
-    const nextBtn = named('next ⏭', 'next episode', () => play(cur + 1));
     const app = el('div', { className: 'app' + (opt.list && !narrow.matches ? '' : ' nolist') },
         el('header', {}, el('div', { className: 'brand' }, side), total, next, gear),
         list,
@@ -496,13 +511,6 @@ function onepace() {
             settings,
             stage,
             el('div', { className: 'info' },
-                el('div', { className: 'bar' },
-                    el('div', { className: 'mid' },
-                        prevBtn,
-                        button('−10s', () => seek(-10)),
-                        button('+10s', () => seek(10)),
-                        nextBtn),
-                    dl),
                 title,
                 desc)));
     root.addEventListener('click', (e) => {
@@ -658,6 +666,10 @@ function onepace() {
         }
         const now = video.muted ? 0 : video.volume * 100 * (gain ? gain.gain.value : 1);
         const next = Math.max(0, Math.min(200, Math.round(now + delta)));
+        setVol(next);
+        overlay(`Volume ${next}%`);
+    }, { passive: false });
+    const setVol = (next) => {
         video.volume = Math.min(100, next) / 100;
         if (next > 0) video.muted = false;
         if (next > 100 && !gain) {
@@ -666,13 +678,16 @@ function onepace() {
             audio.createMediaElementSource(video).connect(gain).connect(audio.destination);
         }
         if (gain) { gain.gain.value = Math.max(1, next / 100); audio.resume(); }
-        overlay(`Volume ${next}%`);
         volText();
-    }, { passive: false });
+    };
     // A context created outside a user activation starts suspended and silences the element.
     video.addEventListener('play', () => audio?.resume());
 
-    const volText = () => { volBtn.textContent = video.muted ? 'muted' : `vol ${Math.round(video.volume * 100 * (gain ? gain.gain.value : 1))}%`; };
+    const volText = () => {
+        const v = Math.round(video.volume * 100 * (gain ? gain.gain.value : 1));
+        volBtn.textContent = video.muted ? 'muted' : `vol ${v}%`;
+        volS.value = video.muted ? 0 : v;
+    };
     video.addEventListener('volumechange', volText);
     volText();
     for (const ev of ['waiting', 'seeking', 'loadstart']) video.addEventListener(ev, () => { spin.hidden = false; });
@@ -706,6 +721,20 @@ function onepace() {
         track.setAttribute('aria-valuetext', time.textContent);
     };
     for (const ev of ['timeupdate', 'durationchange', 'seeking', 'emptied']) video.addEventListener(ev, progress);
+    // The buffered stretch holding the playhead; a file has several after seeks.
+    const buffered = () => {
+        const b = video.buffered, t = video.currentTime;
+        let end = 0;
+        for (let i = 0; i < b.length; i++) if (b.start(i) <= t && t <= b.end(i)) end = b.end(i);
+        buf.style.width = `${(end / video.duration || 0) * 100}%`;
+    };
+    for (const ev of ['progress', 'timeupdate', 'emptied']) video.addEventListener(ev, buffered);
+    track.addEventListener('pointermove', (e) => {
+        const r = track.getBoundingClientRect();
+        const x = Math.min(Math.max(e.clientX - r.left, 0), r.width);
+        tip.textContent = fmt((x / r.width) * (video.duration || 0));
+        tip.style.left = `${Math.min(Math.max(x, 28), r.width - 28)}px`;
+    });
     video.addEventListener('loadedmetadata', drawTicks);
     // Shaded zones are skip zones, white ticks chapter starts, green ticks the bounds of marked zones.
     function drawTicks() {
@@ -740,12 +769,12 @@ function onepace() {
     video.ondblclick = full;
     video.addEventListener('play', () => { playBtn.textContent = '❚❚'; });
     video.addEventListener('pause', () => { playBtn.textContent = '▶'; });
-    // Controls and cursor hide after 2.5 s without pointer movement while playing.
+    // Controls and cursor hide after idle while playing; fullscreen controls cover the bottom subtitle line, so sooner there.
     let idle;
     const wake = () => {
         stage.classList.remove('idle');
         clearTimeout(idle);
-        idle = setTimeout(() => { if (!video.paused) stage.classList.add('idle'); }, 2500);
+        idle = setTimeout(() => { if (!video.paused) stage.classList.add('idle'); }, document.fullscreenElement ? 1500 : 2500);
     };
     stage.addEventListener('pointermove', wake);
     video.addEventListener('play', wake);

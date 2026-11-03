@@ -7,10 +7,10 @@ onepace.net/en/watch
 page hidden behind the player | tab title one piece, held against the router | settings show the page | pace pill on the page brings the player back, none in the player
 header | ☰ far left hides the list | watched of all episodes | up next, click plays it | pace far right opens settings
 list | arcs only, watched count right of each arc | one arc open at a time | playing arc opens at the top, white bar | ✓ right of a watched episode, click or right-click toggles, hover shows it on the rest | rows are buttons, tab reaches them
-player | streams the episode's pixeldrain file | prev, -10s, +10s, next centred under it, tooltips name the episode | download far right
+player | streams the episode's pixeldrain file | picture at full 16:9 height | title and description below it, the column scrolls
 status | spinner after 0.4 s of buffering | a file that fails shows a message and retry
-controls | own seek bar, play, time, mute, pip, fullscreen | under the video, overlaid only in fullscreen, hide there after 2.5 s idle | click plays, double-click fullscreen
-seek bar | shaded skip zones | white ticks chapter starts | green ticks marked zone bounds | a click or drag into a zone plays it | focus it with tab, arrows move 5 s
+controls | own seek bar | one row: time left | prev, -10s, play, +10s, next centred, tooltips name the episode | volume slider to 200%, mute, pip, fullscreen, download right | under the video, overlaid only in fullscreen, hide there after 1.5 s idle | click plays, double-click fullscreen
+seek bar | handle and time bubble on hover | lighter stretch is buffered | shaded skip zones | white ticks chapter starts | green ticks marked zone bounds | a click or drag into a zone plays it | focus it with tab, arrows move 5 s
 skip intro | button over the video when auto skip did not take it, zone with skip off or replayed | fades with idle
 +90s | same button when no intro is known | first 90 s only, gone once used
 resume | each episode reopens where it stopped | dropped once watched
