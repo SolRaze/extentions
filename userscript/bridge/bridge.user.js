@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         bridge
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/bridge
-// @version      1.2
-// @description  open in orca
+// @version      1.3
+// @description  open in orca, tidy makerworld and thingiverse, dark thingiverse
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
 // @license      MIT
 // @match        *://*/*
 // @noframes
-// @run-at       document-idle
+// @run-at       document-start
 // @grant        none
 // @downloadURL https://update.greasyfork.org/scripts/592839/bridge.user.js
 // @updateURL https://update.greasyfork.org/scripts/592839/bridge.meta.js
@@ -25,6 +25,59 @@ const SCHEME = 'orcaslicer';
 const SLICEABLE = ['stl', '3mf', 'obj', 'step', 'stp', 'amf'];
 const PILL_CLASS = 'bridge-orca-pill';
 const LINK_CLASS = 'bridge-orca-link';
+
+// Site clutter. coin_big.png is hidden, not blocked: a userscript cannot cancel the request.
+// Thingiverse class names end in a hash that changes on every deploy, so rules match the prefix.
+const THINGIVERSE_HIDE = [
+    '[class*="PageHeader__pageHeaderButtonCountWrapper--"]:nth-of-type(1) > [class*="PageHeader__pageHeaderNavLink--"].tv-button--icon-solo',
+    '[class*="PageHeader__counter--"]',
+    '[class*="PageHeader__pageHeaderCreateButton--"]',
+    '[class*="PageHeader__pageHeaderNavLink--"].tv-ad-free-cta',
+    '[class*="PageHeader__fullSizeLogo--"]',
+    '[class*="PageHeader__smallLogo--"]',
+    '[class*="HomePageTagline__tagline--"]',
+    '[class*="HomePageBanner__homeBannerSlide--"]',
+    '[class*="Footer__footerBottomSection--"]',
+    '[class*="Footer__footerTopSection--"]',
+    '[class*="HomePage__homePageDiscoverCTA--"]',
+    '[class*="PageHeader__left--"] > [class*="Dropdown__dropdown--"]:nth-of-type(1)',
+    'a[class*="PageHeaderMenuItem__default--"].margin-bottom--lg[class*="PageHeaderMenuItem__pageHeaderMenuItem--"]:nth-of-type(1)',
+];
+// Thingiverse has no theme of its own. Semantic --tv-* tokens resolve through these primitives, so
+// flipping the ramps darkens most of the site. :root:root outranks the site's later :root rule.
+// --tv-white stays white: it is also the text colour on accent buttons.
+const THINGIVERSE_DARK = `:root:root {
+    color-scheme: dark;
+    --tv-neutral-faint: #14161b; --tv-neutral-subtle: #262a33; --tv-neutral-muted: #767d90; --tv-neutral-main: #a5abba;
+    --tv-neutral-strong: #c5c9d3; --tv-neutral-bold: #dcdfe6; --tv-neutral-ink: #eceef2;
+    --tv-brand-faint: #141a33; --tv-brand-subtle: #1c2750; --tv-brand-muted: #3b4f9e; --tv-brand-ink: #e6e8ef;
+    --tv-positive-faint: #0c211e; --tv-positive-subtle: #10302b; --tv-positive-muted: #1b6157; --tv-positive-ink: #8addd3;
+    --tv-negative-faint: #2a1218; --tv-negative-subtle: #3a1722; --tv-negative-muted: #7a2a3b; --tv-negative-ink: #ffa3b4;
+    --tv-warning-faint: #26210c; --tv-warning-subtle: #352d0e; --tv-warning-muted: #6b5a14; --tv-warning-ink: #ffe48b;
+    --tv-highlight-faint: #1e1433; --tv-highlight-subtle: #2a1b4a; --tv-highlight-muted: #57389a; --tv-highlight-ink: #d3bdfb;
+    --tv-bg-layer-01: #1c1f26; --tv-bg-layer-03: #1c1f26; --tv-bg-layer-hover-01: #262a33; --tv-bg-layer-hover-03: #262a33;
+    --tv-bg-disabled: #3a4153; --tv-border-disabled: #3a4153; --tv-border-inverse: #2b303b;
+    --tv-content-accent: #9dafff; --tv-content-accent-dark: #c3cfff; --tv-content-accent-light: #6f86e8;
+}
+[class*="HomePageTagline__brand--"] { color: var(--tv-content-accent) !important; }`;
+// mw-css-* names are build hashes with no stable prefix, so a site deploy can silently stop a rule.
+const MAKERWORLD_HIDE = [
+    '.mw-css-1rq1hy0.expanded',
+    '.mw-css-1r8ctpz',
+    '.mw-css-1r97hlx.MuiLink-root > svg',
+    'img[src*="/makerworld/static/assets/points/coin_big.png"]',
+    '.mw-css-1jbvih8.is-new-version > svg',
+    '.mw-css-1f0l885.is-new-version.upload',
+    '.mw-css-1y3ojfh.user-operate-btns.MuiStack-root',
+    'div.mw-css-14pbytn.expanded:nth-of-type(2) > .mw-css-1x3uo9m > li.mw-css-m4e6it > .mw-css-16xu7u0',
+    '.mw-css-16xu7u0.active',
+    '.mw-css-13rnsht > .mw-css-1x3uo9m > li.mw-css-m4e6it:nth-of-type(3) > .mw-css-16xu7u0',
+    '.mw-css-13rnsht > .mw-css-1x3uo9m > li.mw-css-m4e6it:nth-of-type(4) > .mw-css-16xu7u0',
+    'li.mw-css-m4e6it:nth-of-type(5) > .mw-css-16xu7u0',
+    'li.mw-css-m4e6it:nth-of-type(6) > .mw-css-16xu7u0',
+    'div.mw-css-79elbk:nth-of-type(2) > .mw-css-8x7z17 > .mw-css-1t7o07x',
+    '.mw-css-p9l683 > div.mw-css-79elbk:nth-of-type(2)',
+];
 
 // Pure helpers (exported for selftest.js)
 const extOf = (name) => (String(name).split('.').pop() || '').toLowerCase();
@@ -42,6 +95,17 @@ const deepLink = (url) => `${SCHEME}://open?file=${encodeURIComponent(url)}`;
 if (typeof module !== 'undefined') module.exports = { extOf, isSliceable, modelUrl, deepLink };
 
 if (typeof document !== 'undefined') {
+    // Added at document-start so the clutter never paints.
+    const hideRule = (selectors) => `${selectors.join(',\n')} { display: none !important; }`;
+    const css = /(^|\.)makerworld\.com$/i.test(location.hostname) ? hideRule(MAKERWORLD_HIDE)
+        : /^www\.thingiverse\.com$/i.test(location.hostname) ? `${THINGIVERSE_DARK}\n${hideRule(THINGIVERSE_HIDE)}`
+        : '';
+    if (css) {
+        const style = document.createElement('style');
+        style.textContent = css;
+        (document.head || document.documentElement).append(style);
+    }
+
     // Narrowing by substring first keeps the sweep in the browser's selector engine; modelUrl then
     // throws out the near misses it lets through, like ".object" or ".stpx".
     const LINK_SELECTOR = SLICEABLE.map((ext) => `a[href*=".${ext}" i]`).join(', ');
@@ -140,6 +204,10 @@ if (typeof document !== 'undefined') {
     // opening the Files tab, and crossing the breakpoint — all re-renders rather than page loads.
     // ponytail: one document-wide observer on every site, rAF-coalesced. Narrow it to a container
     // per site only if a page turns out to churn the DOM hard enough to matter.
-    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
-    sync();
+    const start = () => {
+        new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+        sync();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
 }

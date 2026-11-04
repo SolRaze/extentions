@@ -2,7 +2,7 @@ bridge
 
 opens model files in orcaslicer
 
-thingiverse slicer button at any window width | orca chip on any model link, any site
+thingiverse slicer button at any window width | orca chip on any model link, any site | makerworld, thingiverse header, footer, promo clutter hidden | thingiverse dark theme
 
 stl | 3mf | obj | step | stp | amf  orcaslicer://open?file=<url-encoded file url>
 
