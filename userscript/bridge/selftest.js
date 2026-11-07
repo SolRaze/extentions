@@ -1,6 +1,6 @@
 // Self-check for the pure helpers in bridge.user.js. Run: node selftest.js
 const assert = require('assert');
-const { extOf, isSliceable, modelUrl, deepLink } = require('./bridge.user.js');
+const { extOf, isSliceable, modelUrl, deepLink, greyCss } = require('./bridge.user.js');
 
 // The exact pattern OrcaSlicer validates a deep link against (Downloader.cpp).
 const ORCA_RE = /^(orcaslicer|prusaslicer|bambustudio|cura):\/\/open\/?\?file=/i;
@@ -54,5 +54,19 @@ assert.strictEqual(modelUrl('blob:https://example.com/9f2c-4b1a'), null);
 assert.strictEqual(modelUrl('data:model/stl;base64,c29saWQ='), null);
 assert.strictEqual(modelUrl('file:///Users/sol/a.stl'), null);
 assert.strictEqual(modelUrl('javascript:void(0)'), null);
+
+// greyCss: colours lose hue, alpha and everything that is not a colour survive
+assert.strictEqual(greyCss('rgb(255, 0, 0)'), 'rgb(54, 54, 54)');
+assert.strictEqual(greyCss('rgba(0, 174, 66, 0.5)'), 'rgba(129, 129, 129, 0.5)');
+assert.strictEqual(greyCss('rgb(0 174 66 / 50%)'), 'rgba(129, 129, 129, 50%)');
+assert.strictEqual(greyCss('#f00'), '#363636');
+assert.strictEqual(greyCss('#00ae4280'), '#81818180');
+assert.strictEqual(greyCss('hsl(120, 50%, 40%)'), 'hsl(120, 0%, 40%)');
+assert.strictEqual(greyCss('oklch(0.7 0.2 150)'), 'oklch(0.7 0 150)');
+assert.strictEqual(greyCss('1px solid #2b52fe'), '1px solid #565656');
+assert.strictEqual(greyCss('url(a.svg#ff0000) no-repeat'), 'url(a.svg#ff0000) no-repeat', 'a url fragment is not a colour');
+assert.strictEqual(greyCss('#abcde'), '#abcde', 'five digits is not a colour');
+assert.strictEqual(greyCss('var(--tv-brand-main)'), 'var(--tv-brand-main)');
+assert.strictEqual(greyCss(greyCss('#2b52fe')), greyCss('#2b52fe'), 'a rerun must change nothing');
 
 console.log('ok');

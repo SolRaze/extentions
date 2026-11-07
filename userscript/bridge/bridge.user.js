@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         bridge
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/bridge
-// @version      1.3
-// @description  open in orca, tidy makerworld and thingiverse, dark thingiverse
+// @version      1.4
+// @description  open in orca, tidy makerworld and thingiverse, dark thingiverse, monotone model sites
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
 // @supportURL   https://github.com/SolRaze/extentions/issues
@@ -92,14 +92,82 @@ const modelUrl = (href) => {
 // payload exactly once, so the URL is encoded once here and must not be escaped beforehand.
 const deepLink = (url) => `${SCHEME}://open?file=${encodeURIComponent(url)}`;
 
-if (typeof module !== 'undefined') module.exports = { extOf, isSliceable, modelUrl, deepLink };
+// Replaces every colour in a CSS value with the grey of equal luminance, alpha kept. url() is
+// matched so a #fragment inside one is left alone. Grey maps to itself, so a rerun changes nothing.
+const COLOR_RE = /url\([^)]*\)|#[0-9a-f]{3,8}\b|rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*(?:[,/]\s*([\d.]+%?)\s*)?\)|(hsla?\(\s*[^\s,]+[\s,]+)[\d.]+%?|(oklch\(\s*[\d.]+%?\s+)[\d.]+/gi;
+const luma = (r, g, b) => Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+const greyCss = (value) => value.replace(COLOR_RE, (match, r, g, b, alpha, hsl, oklch) => {
+    if (hsl) return `${hsl}0%`;
+    if (oklch) return `${oklch}0`;
+    if (r !== undefined) {
+        const y = luma(+r, +g, +b);
+        return alpha === undefined ? `rgb(${y}, ${y}, ${y})` : `rgba(${y}, ${y}, ${y}, ${alpha})`;
+    }
+    if (match[0] !== '#' || ![3, 4, 6, 8].includes(match.length - 1)) return match;
+    const hex = match.length <= 5 ? [...match.slice(1)].map((c) => c + c).join('') : match.slice(1);
+    const y = luma(...[0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16))).toString(16).padStart(2, '0');
+    return `#${y}${y}${y}${hex.slice(6)}`;
+});
+
+if (typeof module !== 'undefined') module.exports = { extOf, isSliceable, modelUrl, deepLink, greyCss };
 
 if (typeof document !== 'undefined') {
     // Added at document-start so the clutter never paints.
+    // Monotone: site CSS is rewritten rule by rule rather than filtered, so photos and model previews
+    // keep their colour and hover states go grey too. Inline svg paint is often an attribute, hence
+    // the filter.
+    const monotone = /(^|\.)(makerworld|thingiverse|printables|cults3d|turbosquid|stlfinder|yeggi|thangs|pinshape|cgtrader|grabcad|sketchfab|myminifactory|crealitycloud|defcad|thebasemesh|open3dmodel|free3d)\.(com|io)$/i.test(location.hostname);
+    const seenSheets = new WeakSet();
+    const greyStyle = (style) => {
+        for (const prop of [...style]) {
+            const value = style.getPropertyValue(prop);
+            const grey = greyCss(value);
+            if (grey !== value) style.setProperty(prop, grey, style.getPropertyPriority(prop));
+        }
+    };
+    const greyRules = (rules) => {
+        for (const rule of rules) {
+            if (rule.style) greyStyle(rule.style);
+            if (rule.cssRules) greyRules(rule.cssRules);
+        }
+    };
+    const syncMonotone = () => {
+        for (const sheet of [...document.styleSheets, ...document.adoptedStyleSheets]) {
+            if (seenSheets.has(sheet)) continue;
+            try {
+                greyRules(sheet.cssRules);
+                seenSheets.add(sheet);
+            } catch (e) {
+                // A cross-origin sheet is unreadable unless loaded with CORS, so load it again that way
+                // and drop the original once the copy is in. A CDN without CORS fails the copy and
+                // the original stays, coloured. A sheet still loading throws too; the next sweep retries.
+                const link = sheet.ownerNode;
+                if (e.name !== 'SecurityError' || !link || link.tagName !== 'LINK' || link.dataset.bridgeCors) continue;
+                link.dataset.bridgeCors = '1';
+                const copy = link.cloneNode();
+                copy.crossOrigin = 'anonymous';
+                copy.onload = () => link.remove();
+                copy.onerror = () => copy.remove();
+                link.after(copy);
+            }
+        }
+        for (const el of document.querySelectorAll('[style*="rgb" i], [style*="#"], [style*="hsl" i], [style*="oklch" i]')) greyStyle(el.style);
+    };
+    if (monotone) {
+        // CSS-in-JS libraries add rules through insertRule, which no mutation observer sees.
+        const insertRule = CSSStyleSheet.prototype.insertRule;
+        CSSStyleSheet.prototype.insertRule = function (rule, index = 0) {
+            const at = insertRule.call(this, rule, index);
+            try { greyRules([this.cssRules[at]]); } catch {}
+            return at;
+        };
+    }
+
     const hideRule = (selectors) => `${selectors.join(',\n')} { display: none !important; }`;
-    const css = /(^|\.)makerworld\.com$/i.test(location.hostname) ? hideRule(MAKERWORLD_HIDE)
-        : /^www\.thingiverse\.com$/i.test(location.hostname) ? `${THINGIVERSE_DARK}\n${hideRule(THINGIVERSE_HIDE)}`
-        : '';
+    const css = (monotone ? 'svg { filter: grayscale(1); }\n' : '')
+        + (/(^|\.)makerworld\.com$/i.test(location.hostname) ? hideRule(MAKERWORLD_HIDE)
+            : /^www\.thingiverse\.com$/i.test(location.hostname) ? `${THINGIVERSE_DARK}\n${hideRule(THINGIVERSE_HIDE)}`
+            : '');
     if (css) {
         const style = document.createElement('style');
         style.textContent = css;
@@ -191,6 +259,7 @@ if (typeof document !== 'undefined') {
     const sync = () => {
         syncLinks();
         if (onThingiverse) syncFileRows();
+        if (monotone) syncMonotone();
     };
 
     let queued = false;
@@ -204,10 +273,7 @@ if (typeof document !== 'undefined') {
     // opening the Files tab, and crossing the breakpoint — all re-renders rather than page loads.
     // ponytail: one document-wide observer on every site, rAF-coalesced. Narrow it to a container
     // per site only if a page turns out to churn the DOM hard enough to matter.
-    const start = () => {
-        new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
-        sync();
-    };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-    else start();
+    new MutationObserver(schedule).observe(document, { childList: true, subtree: true });
+    if (monotone) document.addEventListener('load', schedule, true); // a stylesheet finishing is no mutation
+    schedule();
 }
