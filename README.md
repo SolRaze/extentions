@@ -14,3 +14,5 @@ mark couch mirror | ig:<code>, yt:<id> docs in hoard's reference db | hoard web 
 flush plan | playlist cleanup from mark tags | applied only on confirm
 
 greasyfork userscript/<name> "<changelog>" | posts a new version | id from @updateURL | none creates the script | login from keepass | sign-in rate limited, 429 | GF_JAR=<temp file> shares one login across runs, delete it after
+
+license mit
