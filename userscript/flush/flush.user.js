@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.13
+// @version      1.14
 // @description  decluttered youtube, instagram, spotify, x, soundcloud, claude, reddit and more, a switch per hidden element | youtube members only, paid and promo content hidden | on youtube seek buttons and keys, miniplayer, gestures, sponsorblock, cpu tamer, playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -653,8 +653,9 @@ function saveCookies(say) {
         if (err === 'not supported') return say('cookies blocked | ' + access);
         if (err || !cookies?.length) return say('cookies not read: ' + (err || 'none returned'));
         if (!cookies.some(c => c.httpOnly)) return say('httpOnly cookies hidden | ' + access);
-        // yt-dlp counts a session as signed in by the SAPISID pair, so the same test decides here.
-        if (!cookies.some(c => c.name === 'SAPISID' || c.name === '__Secure-3PAPISID'))
+        // yt-dlp counts a session signed in only with LOGIN_INFO plus a SAPISID cookie; the same test decides here.
+        const has = n => cookies.some(c => c.name === n);
+        if (!has('LOGIN_INFO') || !['SAPISID', '__Secure-1PAPISID', '__Secure-3PAPISID'].some(has))
             return say(`not signed in | sign in here, then get cookies | ${cookies.length} cookies: ${cookies.map(c => c.name).join(' ')}`);
         const a = h('a', { href: URL.createObjectURL(new Blob([cookieFile(cookies)], { type: 'text/plain' })), download: 'youtube-cookies.txt' });
         a.click();
