@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         flush
 // @namespace    https://github.com/SolRaze/extentions/tree/main/userscript/flush
-// @version      1.12
+// @version      1.13
 // @description  decluttered youtube, instagram, spotify, x, soundcloud, claude, reddit and more, a switch per hidden element | youtube members only, paid and promo content hidden | on youtube seek buttons and keys, miniplayer, gestures, sponsorblock, cpu tamer, playlists tagged in mark
 // @author       SolRaze
 // @homepageURL  https://github.com/SolRaze/extentions
@@ -647,8 +647,15 @@ const latest = () => new Promise((ok, fail) => GM_xmlhttpRequest({
 // so the file has to come from a window that is closed right after.
 function saveCookies(say) {
     GM_cookie.list({ domain: 'youtube.com' }, (cookies, err) => {
+        // Tampermonkey's store build defaults "Allow scripts to access cookies" to all but HttpOnly,
+        // which drops the session cookies; "Disabled" answers "not supported".
+        const access = 'tampermonkey settings, config mode advanced | allow scripts to access cookies: all';
+        if (err === 'not supported') return say('cookies blocked | ' + access);
         if (err || !cookies?.length) return say('cookies not read: ' + (err || 'none returned'));
-        if (!cookies.some(c => c.name === 'LOGIN_INFO')) return say('not signed in | sign in here, then get cookies');
+        if (!cookies.some(c => c.httpOnly)) return say('httpOnly cookies hidden | ' + access);
+        // yt-dlp counts a session as signed in by the SAPISID pair, so the same test decides here.
+        if (!cookies.some(c => c.name === 'SAPISID' || c.name === '__Secure-3PAPISID'))
+            return say(`not signed in | sign in here, then get cookies | ${cookies.length} cookies: ${cookies.map(c => c.name).join(' ')}`);
         const a = h('a', { href: URL.createObjectURL(new Blob([cookieFile(cookies)], { type: 'text/plain' })), download: 'youtube-cookies.txt' });
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 10000);

@@ -54,6 +54,7 @@ no innerHTML | youtube enforces trusted types
 button icons 24px like the player's own | 36 grid cropped by viewBox
 cookies | sign in inside the private window, get cookies, close the window | a session the browser keeps using gets its cookies rotated, the file dies
 cookies | tampermonkey needs allow in incognito | browser extension settings
+cookies | tampermonkey settings, config mode advanced, allow scripts to access cookies: all | store build defaults to all but HttpOnly, session cookies missing
 youtube-cookies.txt is the signed-in session | whoever reads it is the account
 playlists read by shape | video and playlist lockups, first continuation token | a redesign renaming lockupViewModel empties the library
 duplicate removal needs setVideoId | only an owner's view carries it | without it extra copies stay
